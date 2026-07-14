@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Note: In Prisma 7, connection URL is configured in prisma.config.ts, not here
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTH TABLES (NextAuth / Auth.js v5 — JWT sessions, no Session table needed)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  courses  Course[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE APP TABLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One imported YouTube playlist, owned by a user
+model Course {
+  id                String   @id @default(cuid())
+  userId            String
+  youtubePlaylistId String
+  title             String
+  thumbnailUrl      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos Video[]
+
+  // A user can only import the same playlist once
+  @@unique([userId, youtubePlaylistId])
+}
+
+// One video in a course.
+// Holds per-user watch state directly (no join table needed —
+// Video already belongs to exactly one user via Course → User).
+model Video {
+  id                 String      @id @default(cuid())
+  courseId           String
+  youtubeVideoId     String
+  title              String
+  position           Int         // Order within the playlist (0-indexed)
+  durationSeconds    Int?
+  thumbnailUrl       String?
+  isAvailable        Boolean     @default(true) // false = private/deleted on YouTube
+  status             VideoStatus @default(not_started)
+  lastWatchedSeconds Int?        // Resume playback position
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  notes  Note[]
+
+  // A video can only appear once per course
+  @@unique([courseId, youtubeVideoId])
+  // Indexed for AIContent lookups (many videos share same YT video ID across users)
+  @@index([youtubeVideoId])
+}
+
+enum VideoStatus {
+  not_started
+  watching
+  completed
+}
+
+// AI-generated content — SHARED across all users, keyed by youtubeVideoId.
+// Design: if two users import the same YouTube video, they share one AIContent
+// row. Only the first request ever triggers a real AI call.
+// The unique constraint on youtubeVideoId is the dedup lock:
+//   - First insert → wins, generates content
+//   - Concurrent insert → unique violation → falls back to reading existing row
+model AIContent {
+  id             String          @id @default(cuid())
+  youtubeVideoId String          @unique // The dedup key
+  transcript     String?         @db.Text
+  summary        String?         @db.Text
+  quiz           Json?           // { questions: [{ question, options: string[], answer: number }] }
+  status         AIContentStatus @default(pending)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+enum AIContentStatus {
+  pending // AI generation in progress
+  ready   // Content available
+  failed  // Generation failed — safe to retry
+}
+
+// Free-text notes on a video.
+// No userId — ownership implied via Note → Video → Course → User.
+model Note {
+  id        String   @id @default(cuid())
+  videoId   String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+}
