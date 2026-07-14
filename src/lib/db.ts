@@ -1,11 +1,20 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
-// Prisma 7: requires a driver adapter — the URL is no longer in schema.prisma
+// Prevent multiple Prisma client instances during Next.js hot-reload in dev.
+// In production, each serverless function invocation gets one fresh instance.
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
 function createPrismaClient() {
-  const adapter = new PrismaPg({
+  const pool = new Pool({
     connectionString: process.env.DATABASE_URL!,
   });
+  
+  const adapter = new PrismaPg(pool);
+  
   return new PrismaClient({
     adapter,
     log:
@@ -14,12 +23,6 @@ function createPrismaClient() {
         : ["error"],
   });
 }
-
-// Prevent multiple Prisma client instances during Next.js hot-reload in dev.
-// In production, each serverless function invocation gets one fresh instance.
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 

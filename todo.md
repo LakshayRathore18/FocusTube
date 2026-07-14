@@ -41,20 +41,15 @@
   - [x] Ran `npx prisma db push` — all tables live in Neon ✅
   - [x] Ran `npx prisma generate` — client generated
   - [x] Created `src/lib/db.ts` Prisma singleton with `PrismaPg` driver adapter
+- [x] **Step 2 — Auth: Google OAuth + JWT sessions**
+  - [x] Installed `next-auth@beta`
+  - [x] Wrote `src/auth.ts` with Google provider, Prisma adapter, JWT strategy
+  - [x] Created route handler: `src/app/api/auth/[...nextauth]/route.ts`
+  - [x] Wrote Next.js 16 Proxy `src/proxy.ts` to protect `/dashboard` and `/courses`
+  - [x] Implemented Sign-in and Sign-out UI components and layouts
+  - [x] Set up Google OAuth credentials locally
 
 ### 🔄 In Progress
-
-- [ ] **Step 2 — Auth: Google OAuth + JWT sessions**
-
-### 📋 Upcoming
-
-- [ ] **Step 2 — Auth: Google OAuth + JWT sessions**
-  - [ ] Install `next-auth@beta`
-  - [ ] `src/auth.ts` — configure Google provider, Prisma adapter, JWT strategy
-  - [ ] Route handler: `src/app/api/auth/[...nextauth]/route.ts`
-  - [ ] Middleware `src/middleware.ts`: protect `/dashboard`, `/courses` routes
-  - [ ] Sign in / sign out UI components
-  - [ ] Set up Google OAuth credentials (console.cloud.google.com)
 
 - [ ] **Step 3 — Playlist import**
   - [ ] YouTube Data API v3 integration (Playlists + PlaylistItems)
