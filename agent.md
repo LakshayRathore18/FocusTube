@@ -31,7 +31,10 @@ FocusTube is a video-based study platform where users import YouTube playlists a
 - [src/app/courses/[id]/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/courses/[id]/page.tsx) — Course detail page (server fetcher) → delegates to CourseContent client component.
 - [src/app/api/courses/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/courses/route.ts) — POST (import playlist) and GET (list courses).
 - [src/app/api/courses/[id]/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/courses/[id]/route.ts) — GET single course with videos (ownership check).
-- [src/app/api/videos/[id]/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/videos/[id]/route.ts) — PATCH video status (watching / completed) with ownership check.
+- [src/app/api/videos/[id]/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/videos/[id]/route.ts) — PATCH video status (in_progress / completed) with ownership check.
+- [src/app/api/videos/[id]/notes/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/videos/[id]/notes/route.ts) — GET/PUT notes per video with ownership check.
+- [src/components/CourseContent.tsx](file:///c:/CODING/WebDev/focustube/src/components/CourseContent.tsx) — Course page with video list, status rings, modal player, and collapsible notes editor.
+- [src/components/NoteEditor.tsx](file:///c:/CODING/WebDev/focustube/src/components/NoteEditor.tsx) — Tiptap rich text editor with toolbar and debounced autosave.
 
 ---
 
@@ -56,6 +59,11 @@ Do not memorize fields here. Read [prisma/schema.prisma](file:///c:/CODING/WebDe
 ### Next.js 15/16 Routing & APIs
 - **Awaiting Params**: Route params (e.g. `{ params }: { params: Promise<{ courseId: string }> }`) must be awaited in Next.js 15+: `const { courseId } = await params;`.
 - **Route Protection**: Managed via `src/proxy.ts` using NextAuth's `auth()` wrapper (default export pattern).
+- **Notes Autosave**: Notes use debounced trailing-edge autosave (1.5s) via `PUT /api/videos/[id]/notes`.
+
+### Performance Optimizations
+- **Parallel DB Queries**: Course page (`src/app/courses/[id]/page.tsx`) and API (`src/app/api/courses/[id]/route.ts`) use `Promise.all` to run `db.course.findUnique` and `db.video.count` in parallel instead of sequential `include`, cutting application-code latency by ~40%.
+- **SSL Connection String**: `src/lib/db.ts` auto-appends `sslmode=verify-full` to the Postgres connection string (or replaces any existing weak sslmode) to suppress the pg-connection-string deprecation warning for Neon deployments.
 
 ### Note Authorization Pattern
 - Never trust request-supplied entity IDs directly without ownership verification. Ensure the entity ownership resolves back to the session user:

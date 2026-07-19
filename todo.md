@@ -9,10 +9,10 @@
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | `src/` directory layout |
+| Framework | Next.js 16 (App Router) | `src/` directory layout |
 | Language | TypeScript | Strict mode |
 | Styling | Tailwind CSS v4 | PostCSS via `@tailwindcss/postcss` |
-| UI Components | shadcn/ui | To be initialized |
+| UI Components | Tiptap (rich text editor) + lucide-react (icons) | Installed via npm |
 | Database | PostgreSQL — Neon (free tier) | Serverless Postgres |
 | ORM | Prisma 7.8.0 | Schema in `prisma/schema.prisma`, connection URL in `prisma.config.ts` (breaking change from v6) |
 | Auth | NextAuth / Auth.js v5 | Google OAuth only, JWT sessions (no DB sessions) |
@@ -78,14 +78,18 @@
   - [x] Show title, thumbnail, video count
   - [x] Import new playlist CTA
 
-### 🔄 In Progress
+### ✅ Completed
 
-- [ ] **Step 5 — Notes: add / edit / delete**
-  - [ ] Notes panel beside the player
-  - [ ] `POST /api/notes` — create
-  - [ ] `PATCH /api/notes/[noteId]` — update
-  - [ ] `DELETE /api/notes/[noteId]` — delete
-  - [ ] `GET /api/notes?videoId=X` — list (auth check via Video→Course→User)
+- [x] **Step 5 — Notes: Tiptap rich text editor + autosave**
+  - [x] `NoteEditor.tsx` — Tiptap rich text with toolbar (bold, italic, underline, headings, lists, clear formatting)
+  - [x] Debounced trailing-edge autosave (1.5s) via `PUT /api/videos/[id]/notes`
+  - [x] `GET /api/videos/[id]/notes` — load existing note on mount
+  - [x] Notes modal triggered from player control bar and video list (pencil icon)
+  - [x] Notes indicator: filled pencil icon when a video has notes
+  - [x] Save status indicator: idle → saving → saved / error
+  - [x] Ownership verified via Video → Course → User chain
+
+### 🔄 In Progress
 
 - [ ] **Step 7 — AI: summary + quiz (synchronous)**
   - [ ] Swappable AI provider interface `src/lib/ai/provider.ts`

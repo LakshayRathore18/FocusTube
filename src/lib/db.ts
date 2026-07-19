@@ -9,12 +9,19 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL!,
-  });
-  
+  const rawUrl = process.env.DATABASE_URL!;
+
+  // Suppress the pg-connection-string SECURITY WARNING:
+  //   sslmode=prefer|require|verify-ca are aliased to verify-full.
+  // Replace any existing weak sslmode with verify-full, or append it.
+  const connectionString = rawUrl.includes("sslmode=")
+    ? rawUrl.replace(/sslmode=\w+/g, "sslmode=verify-full")
+    : rawUrl + (rawUrl.includes("?") ? "&" : "?") + "sslmode=verify-full";
+
+  const pool = new Pool({ connectionString });
+
   const adapter = new PrismaPg(pool);
-  
+
   return new PrismaClient({
     adapter,
     log:

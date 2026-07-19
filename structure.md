@@ -15,7 +15,8 @@ FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and 
   - YouTube Data API v3 integration (playlist import, playlist items fetch)
   - Course import POST endpoint + list GET endpoint
   - Dashboard page (list courses, import new playlist via URL)
-  - Course detail page with YouTube embed player and clickable video list
+  - Course detail page with YouTube embed player, progress tracking, and notes modal
+  - Tiptap rich text notes with debounced autosave (1.5s)
   - Landing page (redirects authenticated users to dashboard)
 - **Running**: Dev server runs on `localhost:3000`.
 - **Database**: 6 tables deployed on Neon PostgreSQL. Prisma client generated and active.
@@ -39,7 +40,9 @@ focustube/
 │   │   │   │       └── route.ts ← GET (single course with videos, ownership check)
 │   │   │   └── videos/
 │   │   │       └── [id]/
-│   │   │           └── route.ts ← PATCH (update video watch state)
+│   │   │           ├── route.ts  ← PATCH (update video watch state)
+│   │   │           └── notes/
+│   │   │               └── route.ts ← GET/PUT (fetch/upsert notes)
 │   │   ├── courses/
 │   │   │   └── [id]/
 │   │   │       └── page.tsx   ← Course detail server component, delegates to CourseContent
@@ -53,8 +56,9 @@ focustube/
 │   │   └── page.tsx           ← Landing page (redirects authed users to /dashboard)
 │   ├── components/
 │   │   ├── AuthButton.tsx     ← Client Component: user avatar dropdown / sign in button
-│   │   ├── CourseContent.tsx  ← Client Component: YouTube iframe embed + interactive video list
-│   │   └── Navbar.tsx         ← Client-side Navbar wrapping AuthButton
+│   │   ├── CourseContent.tsx  ← Client Component: YouTube iframe embed + video list + notes modal
+│   │   ├── Navbar.tsx         ← Client-side Navbar wrapping AuthButton
+│   │   └── NoteEditor.tsx     ← Tiptap rich text editor with toolbar + debounced autosave
 │   ├── lib/
 │   │   ├── db.ts              ← Prisma client singleton with PrismaPg driver adapter
 │   │   └── youtube.ts         ← YouTube Data API v3: extractPlaylistId, fetchPlaylistData, fetchPlaylistItems

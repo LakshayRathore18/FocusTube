@@ -20,15 +20,20 @@ export async function GET(
 
   const { id } = await params;
 
-  const course = await db.course.findUnique({
-    where: { id },
-    include: {
-      videos: {
-        orderBy: { position: "asc" },
+  // Run course fetch & video count in parallel
+  const [course, videoCount] = await Promise.all([
+    db.course.findUnique({
+      where: { id },
+      include: {
+        videos: {
+          orderBy: { position: "asc" },
+        },
       },
-      _count: { select: { videos: true } },
-    },
-  });
+    }),
+    db.video.count({
+      where: { courseId: id },
+    }),
+  ]);
 
   if (!course) {
     return NextResponse.json({ error: "Course not found" }, { status: 404 });
@@ -39,5 +44,8 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  return NextResponse.json(course);
+  return NextResponse.json({
+    ...course,
+    _count: { videos: videoCount },
+  });
 }

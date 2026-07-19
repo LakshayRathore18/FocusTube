@@ -81,6 +81,9 @@ model Video {
   isAvailable        Boolean     @default(true) // false = private/deleted on YouTube
   status             VideoStatus @default(not_started)
   lastWatchedSeconds Int?        // Resume playback position
+  completedAt        DateTime?   // Set when status transitions to completed
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   notes  Note[]
@@ -93,7 +96,7 @@ model Video {
 
 enum VideoStatus {
   not_started
-  watching
+  in_progress
   completed
 }
 
@@ -110,6 +113,8 @@ model AIContent {
   summary        String?         @db.Text
   quiz           Json?           // { questions: [{ question, options: string[], answer: number }] }
   status         AIContentStatus @default(pending)
+  attempts       Int             @default(0)  // Number of generation attempts
+  lastAttemptedAt DateTime?      // Last attempt timestamp
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -122,9 +127,10 @@ enum AIContentStatus {
 
 // Free-text notes on a video.
 // No userId — ownership implied via Note → Video → Course → User.
+// One note per video — enforced at the DB level.
 model Note {
   id        String   @id @default(cuid())
-  videoId   String
+  videoId   String   @unique  // One note per video
   content   String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

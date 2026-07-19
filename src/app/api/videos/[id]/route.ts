@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 /**
  * PATCH /api/videos/[id]
  *
- * Body: { status?: "not_started" | "watching" | "completed", lastWatchedSeconds?: number }
+ * Body: { status?: "not_started" | "in_progress" | "completed", lastWatchedSeconds?: number }
  *
  * Updates the watch state of a video. Authorization is enforced by walking
  * the relation chain: Video → Course → User.
@@ -48,6 +48,14 @@ export async function PATCH(
     }
   }
 
+  // When marking as completed, also set completedAt
+  if (updateData.status === "completed") {
+    updateData.completedAt = new Date();
+  } else if (updateData.status === "not_started") {
+    // If reverting from completed, clear completedAt
+    updateData.completedAt = null;
+  }
+
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
@@ -55,7 +63,7 @@ export async function PATCH(
   const updated = await db.video.update({
     where: { id },
     data: updateData,
-    select: { id: true, status: true, lastWatchedSeconds: true },
+    select: { id: true, status: true, lastWatchedSeconds: true, completedAt: true },
   });
 
   return NextResponse.json(updated);
