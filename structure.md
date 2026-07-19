@@ -8,7 +8,15 @@ This document is a comprehensive guide for developers (humans) to understand the
 
 FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and NextAuth v5.
 
-- **Completed**: Next.js 16 scaffolding, Prisma schema pushed to Neon, Google-based OAuth authentication (NextAuth v5 + JWT session strategy), and route protection via Next.js 16 Proxy.
+- **Completed**: 
+  - Next.js 16 scaffolding, Prisma schema pushed to Neon
+  - Google-based OAuth authentication (NextAuth v5 + JWT session strategy)
+  - Route protection via Next.js 16 Proxy
+  - YouTube Data API v3 integration (playlist import, playlist items fetch)
+  - Course import POST endpoint + list GET endpoint
+  - Dashboard page (list courses, import new playlist via URL)
+  - Course detail page with YouTube embed player and clickable video list
+  - Landing page (redirects authenticated users to dashboard)
 - **Running**: Dev server runs on `localhost:3000`.
 - **Database**: 6 tables deployed on Neon PostgreSQL. Prisma client generated and active.
 
@@ -22,21 +30,36 @@ focustube/
 │   └── schema.prisma          ← DB schema (all 6 models defined here)
 ├── src/
 │   ├── app/
-│   │   ├── api/auth/[...nextauth]/
-│   │   │   └── route.ts       ← NextAuth v5 GET/POST exports
+│   │   ├── api/
+│   │   │   ├── auth/[...nextauth]/
+│   │   │   │   └── route.ts   ← NextAuth v5 GET/POST exports
+│   │   │   ├── courses/
+│   │   │   │   ├── route.ts   ← GET (list courses) + POST (import playlist)
+│   │   │   │   └── [id]/
+│   │   │   │       └── route.ts ← GET (single course with videos, ownership check)
+│   │   │   └── videos/
+│   │   │       └── [id]/
+│   │   │           └── route.ts ← PATCH (update video watch state)
+│   │   ├── courses/
+│   │   │   └── [id]/
+│   │   │       └── page.tsx   ← Course detail server component, delegates to CourseContent
+│   │   ├── dashboard/
+│   │   │   └── page.tsx       ← Dashboard: course cards grid + import form
 │   │   ├── sign-in/
 │   │   │   └── page.tsx       ← Server Action-based Google sign-in page
 │   │   ├── favicon.ico        ← Default Next.js favicon
-│   │   ├── globals.css        ← Tailwind v4 import + CSS variables (bg/fg colours)
+│   │   ├── globals.css        ← Tailwind v4 import + CSS variables
 │   │   ├── layout.tsx         ← Root HTML shell: Navbar + children, wraps with SessionProvider
-│   │   └── page.tsx           ← Default Next.js boilerplate landing page (to be replaced)
+│   │   └── page.tsx           ← Landing page (redirects authed users to /dashboard)
 │   ├── components/
-│   │   ├── AuthButton.tsx     ← Client Component: toggles drop-down, displays user avatar/sign out
+│   │   ├── AuthButton.tsx     ← Client Component: user avatar dropdown / sign in button
+│   │   ├── CourseContent.tsx  ← Client Component: YouTube iframe embed + interactive video list
 │   │   └── Navbar.tsx         ← Client-side Navbar wrapping AuthButton
 │   ├── lib/
-│   │   └── db.ts              ← Prisma client singleton with PrismaPg driver adapter
+│   │   ├── db.ts              ← Prisma client singleton with PrismaPg driver adapter
+│   │   └── youtube.ts         ← YouTube Data API v3: extractPlaylistId, fetchPlaylistData, fetchPlaylistItems
 │   ├── auth.ts                ← NextAuth v5 Config (adapter, Google provider, JWT callbacks)
-│   └── proxy.ts               ← Next.js 16 Route protection Proxy (replaces middleware.ts)
+│   ├── proxy.ts               ← Route protection (NextAuth v5 auth check for /dashboard, /courses)
 ├── .env.example               ← Safe-to-commit template with empty values
 ├── .env.local                 ← Actual secrets — NEVER commit (gitignored)
 ├── .gitignore                 ← Ignores node_modules/, .next/, .env.local
@@ -44,8 +67,9 @@ focustube/
 ├── CLAUDE.md                  ← Quick link to AGENTS.md
 ├── agent.md                   ← High-density context for AI agents
 ├── eslint.config.mjs          ← ESLint flat config
+├── issues.md                  ← Current issues tracker
 ├── next-env.d.ts              ← Auto-generated Next.js types
-├── next.config.ts             ← Empty Next.js config (no custom settings yet)
+├── next.config.ts             ← Empty Next.js config
 ├── package.json               ← npm dependencies and script configuration
 ├── package-lock.json          ← Lock file
 ├── postcss.config.mjs         ← PostCSS pipeline for Tailwind v4
@@ -90,30 +114,13 @@ Prisma client singleton that configures connection pooling using `pg` and maps t
 - Prevents database connection exhaustion caused by Next.js hot-reloads in development.
 - Uses a driver adapter to satisfy Prisma 7 requirements.
 
-```ts
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-function createPrismaClient() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL!,
-  });
-  const adapter = new PrismaPg(pool);
-  return new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
-}
-
-export const db = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
-```
+### `src/lib/youtube.ts`
+YouTube Data API v3 utility functions:
+- `extractPlaylistId(url)` — parses various YouTube URL formats to extract the playlist ID
+- `fetchPlaylistData(playlistId)` — fetches playlist metadata (title, thumbnail, video count)
+- `fetchPlaylistItems(playlistId)` — paginated fetch of all videos in a playlist (up to 500)
+- Skips private/deleted videos automatically
+- Requires `YOUTUBE_API_KEY` environment variable
 
 ### `src/app/layout.tsx`
 The primary HTML skeleton of the app.
@@ -122,13 +129,51 @@ The primary HTML skeleton of the app.
 - Renders the custom global `<Navbar />`.
 
 ### `src/app/page.tsx`
-The root landing page (`/`). It will be customized to present the project dashboard/splash page.
+The root landing page (`/`).
+- Calls `auth()` server-side to check if user is authenticated
+- If authenticated: redirects to `/dashboard`
+- If not: shows the marketing landing page with "Get Started" and "Dashboard" buttons and feature highlights
+
+### `src/app/dashboard/page.tsx`
+Client-side dashboard page (`/dashboard`).
+- Fetches all user courses from `GET /api/courses`
+- Shows course cards with thumbnails, titles, and video counts
+- Contains an import form: paste YouTube playlist URL → calls `POST /api/courses` → redirects to new course page
+- Handles duplicate import (409) by redirecting to existing course
+- Shows empty state when no courses exist
+
+### `src/app/courses/[id]/page.tsx`
+Server component for the course detail page (`/courses/[id]`).
+- Checks auth via `auth()`, redirects to `/sign-in` if not authenticated
+- Fetches course data (with videos ordered by position) from Prisma
+- Verifies ownership — calls `notFound()` if user doesn't own the course
+- Delegates all rendering to the `CourseContent` client component
+
+### `src/components/CourseContent.tsx`
+Client component that provides the interactive course experience:
+- **Modal video player**: Clicking a video opens a centered modal with YouTube iframe embed (autoplay enabled)
+- **Modal features**: Dark backdrop (`bg-black/70` + `backdrop-blur-sm`), close via X button, Escape key, or clicking outside the player
+- **Status indicator system**: Each video has a circular status icon — empty gray ring (not_started), amber partial-progress ring (watching, with progress % from `lastWatchedSeconds`/`durationSeconds`), solid green checkmark (completed)
+- **Left-edge accent bar**: Thin 3px vertical bar on the far-left edge of each row — green for completed, amber for in_progress, none for not_started
+- **Completed row tint**: Subtle green overlay (`bg-green-500/5`) across completed rows for scannability
+- **Colored status labels**: Status text matches state color — gray (not_started), amber (in_progress), green (completed)
+- **Hover-expand Play button**: Red button shows only ▶ icon by default. On row hover, expands width and fades in "Play" text via CSS transitions (150ms ease-out)
+- **Row hover**: Lightened background on hover reinforces clickability
+- **Unavailable videos**: Dimmed with "Unavailable" badge
+- **Course header**: Shows title, thumbnail, video count, completed count, and progress bar
+
+### `src/app/api/courses/route.ts`
+- `GET /api/courses`: Returns all courses for the authenticated user with video counts, sorted by most recently updated
+- `POST /api/courses`: Imports a YouTube playlist — extracts playlist ID, fetches metadata + videos from YouTube API, creates Course + Video rows in a Prisma transaction. Returns 409 if user already imported the same playlist
+
+### `src/app/api/courses/[id]/route.ts`
+- `GET /api/courses/[id]`: Returns a single course with all its videos (ordered by position). Includes ownership check (403 if forbidden, 404 if not found)
 
 ### `src/app/globals.css`
 Tailwind CSS v4 entry point. Configures native CSS variables and themes inside `@theme inline` (replacing the legacy `tailwind.config.js` or `tailwind.config.ts`).
 
 ### `src/proxy.ts`
-Custom proxy implementation that runs authentication checks and route protection in Next.js 16, replacing traditional Next.js middleware.
+Route protection proxy using NextAuth v5's `auth()` wrapper. Protects `/dashboard` and `/courses` paths, redirecting unauthenticated users to `/sign-in`.
 
 ---
 
@@ -191,7 +236,7 @@ User-created text notes for specific videos.
 [Browser Request]
        │
        ▼
-[src/proxy.ts] (Checks JWT cookie via auth())
+[src/proxy.ts] (Checks JWT session via auth())
        │
        ├─► [Unauthenticated] ──► Redirect to /sign-in
        │
@@ -206,6 +251,20 @@ User-created text notes for specific videos.
 5. Session token maps Google identity (`token.sub`) to database User ID (`session.user.id`).
 6. JWT cookie is set; user is redirected to `/dashboard`.
 
+### Playlist Import Flow
+1. User pastes a YouTube playlist URL on the dashboard import form.
+2. `POST /api/courses` receives the URL, calls `extractPlaylistId()`.
+3. YouTube Data API fetches playlist metadata and all video items (paginated up to 500).
+4. A Prisma transaction creates the Course row + all Video rows in one batch.
+5. User is redirected to `/courses/[courseId]` where the embedded player is ready.
+
+### Course Viewing Flow
+1. Server component at `/courses/[id]` verifies auth and ownership.
+2. Fetches course + videos from Prisma, delegates to `CourseContent` client component.
+3. `CourseContent` selects the first video by default and renders the YouTube iframe embed.
+4. User clicks any video in the list → it becomes the "now playing" video.
+5. The iframe changes to the newly selected video's YouTube ID.
+
 ---
 
 ## 6. Key CLI Commands
@@ -213,3 +272,5 @@ User-created text notes for specific videos.
 - `npx prisma db push` — Synchronizes schema changes with Neon PostgreSQL.
 - `npx prisma generate` — Generates TypeScript bindings for `@prisma/client`.
 - `npx prisma studio` — Interactive local admin dashboard for browsing database records.
+- `npm run dev` — Starts Next.js dev server on `localhost:3000`.
+- `npx tsc --noEmit` — TypeScript type-check without emitting files.

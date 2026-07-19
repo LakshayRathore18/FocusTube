@@ -2,14 +2,14 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 /**
- * Proxy — Next.js 16 replacement for middleware.
+ * Proxy — Next.js route protection.
  *
  * Uses NextAuth v5's `auth()` helper to read the session JWT.
  *
  * Protected: /dashboard, /courses
  * Redirect target: /sign-in
  */
-export const proxy = auth((req) => {
+export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const pathname = req.nextUrl.pathname;
 
@@ -25,6 +25,5 @@ export const proxy = auth((req) => {
 });
 
 export const config = {
-  // Run proxy only on dashboard and courses paths
   matcher: ["/dashboard/:path*", "/courses/:path*"],
 };

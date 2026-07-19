@@ -45,27 +45,40 @@
   - [x] Installed `next-auth@beta`
   - [x] Wrote `src/auth.ts` with Google provider, Prisma adapter, JWT strategy
   - [x] Created route handler: `src/app/api/auth/[...nextauth]/route.ts`
-  - [x] Wrote Next.js 16 Proxy `src/proxy.ts` to protect `/dashboard` and `/courses`
+  - [x] Wrote `src/middleware.ts` to protect `/dashboard` and `/courses`
   - [x] Implemented Sign-in and Sign-out UI components and layouts
   - [x] Set up Google OAuth credentials locally
 
+### ✅ Completed
+
+- [x] **Step 3 — Playlist import**
+  - [x] YouTube Data API v3 integration (Playlists + PlaylistItems)
+  - [x] Extract playlist ID from any YouTube playlist URL format
+  - [x] `POST /api/courses` — create Course + Video rows in a transaction
+  - [x] Thumbnail: use playlist thumbnail, fall back to first video thumbnail
+  - [x] Set `isAvailable=false` at import for private/unavailable videos
+  - [x] Import UI: input → loading state → redirect to course page
+
+- [x] **Step 4 — Course page: player + navigation**
+  - [x] `/courses/[courseId]` — course overview with video list
+  - [x] YouTube iframe embed modal player
+  - [x] Status indicator system (rings, partial-fill, checkmarks)
+  - [x] Clickable status circle to toggle completed
+  - [x] `PATCH /api/videos/[videoId]` — update watch state
+  - [x] On play → sets `status=watching`, "Mark as completed" button in modal
+  - [x] Hover-expand play button
+
+- [x] **Step 6 — Progress: complete + course %**
+  - [x] "Mark complete" button → `PATCH` video `status=completed`
+  - [x] Course completion % = completed / total videos
+  - [x] Display % as progress bar on course page
+
+- [x] **Step 8 — Dashboard: courses + resume**
+  - [x] `/dashboard` — list all user courses
+  - [x] Show title, thumbnail, video count
+  - [x] Import new playlist CTA
+
 ### 🔄 In Progress
-
-- [ ] **Step 3 — Playlist import**
-  - [ ] YouTube Data API v3 integration (Playlists + PlaylistItems)
-  - [ ] Extract playlist ID from any YouTube playlist URL format
-  - [ ] `POST /api/courses` — create Course + Video rows in a transaction
-  - [ ] Thumbnail: use playlist thumbnail, fall back to first video thumbnail
-  - [ ] Set `isAvailable=false` at import for private/unavailable videos
-  - [ ] Import UI: input → loading state → redirect to course page
-
-- [ ] **Step 4 — Course page: player + navigation**
-  - [ ] `/courses/[courseId]` — course overview, video list sidebar
-  - [ ] `/courses/[courseId]/videos/[videoId]` — player page
-  - [ ] YouTube iframe embed player
-  - [ ] Prev / Next video buttons
-  - [ ] On play → `PATCH /api/videos/[videoId]` → `status=watching`
-  - [ ] "Video not available" modal for `isAvailable=false`
 
 - [ ] **Step 5 — Notes: add / edit / delete**
   - [ ] Notes panel beside the player
@@ -74,11 +87,6 @@
   - [ ] `DELETE /api/notes/[noteId]` — delete
   - [ ] `GET /api/notes?videoId=X` — list (auth check via Video→Course→User)
 
-- [ ] **Step 6 — Progress: complete + course %**
-  - [ ] "Mark complete" button → `PATCH` video `status=completed`
-  - [ ] Course completion % = completed / total available videos
-  - [ ] Display % on dashboard course cards
-
 - [ ] **Step 7 — AI: summary + quiz (synchronous)**
   - [ ] Swappable AI provider interface `src/lib/ai/provider.ts`
   - [ ] Gemini implementation `src/lib/ai/gemini.ts`
@@ -86,12 +94,6 @@
   - [ ] `POST /api/ai/content` — check AIContent → insert pending → generate → save ready
   - [ ] Unique constraint on `youtubeVideoId` handles race (first insert wins, second reads)
   - [ ] Return summary + quiz JSON to client
-
-- [ ] **Step 8 — Dashboard: courses + resume**
-  - [ ] `/dashboard` — list all user courses
-  - [ ] Show title, thumbnail, completion %
-  - [ ] "Resume" → last `status=watching` video, or first not_started
-  - [ ] Import new playlist CTA
 
 - [ ] **Step 9 — Full-text note search**
   - [ ] Postgres `tsvector` + GIN index on `Note.content`
