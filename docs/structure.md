@@ -14,10 +14,12 @@ FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and 
   - Route protection via Next.js 16 Proxy
   - YouTube Data API v3 integration (playlist import, playlist items fetch)
   - Course import POST endpoint + list GET endpoint
-  - Dashboard page (list courses, import new playlist via URL)
+  - Dashboard page (course cards with progress bars, search filter, Continue Watching section, import form)
   - Course detail page with YouTube embed player, progress tracking, and notes modal
   - Tiptap rich text notes with debounced autosave (1.5s)
   - Landing page (redirects authenticated users to dashboard)
+  - Continue Watching API (up to 3 in_progress videos with course info)
+  - All Notes page (/notes): notes grouped by course, search filter, modal note editor
 - **Running**: Dev server runs on `localhost:3000`.
 - **Database**: 6 tables deployed on Neon PostgreSQL. Prisma client generated and active.
 
@@ -27,8 +29,15 @@ FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and 
 
 ```
 focustube/
+├── docs/
+│   ├── agent.md                ← AI agent context + Next.js version warnings
+│   ├── structure.md            ← This file: human-readable project guide
+│   ├── todo.md                 ← Build tracker + design decisions
+│   ├── issues.md               ← Issue tracker
+│   ├── CLAUDE.md               ← Quick link to agent.md
+│   └── README.md               ← Project overview
 ├── prisma/
-│   └── schema.prisma          ← DB schema (all 6 models defined here)
+│   └── schema.prisma           ← DB schema (all 6 models defined here)
 ├── src/
 │   ├── app/
 │   │   ├── api/
@@ -38,7 +47,14 @@ focustube/
 │   │   │   │   ├── route.ts   ← GET (list courses) + POST (import playlist)
 │   │   │   │   └── [id]/
 │   │   │   │       └── route.ts ← GET (single course with videos, ownership check)
+│   │   │   ├── notes/
+│   │   │   │   └── route.ts   ← GET (all notes with video + course info, for /notes page)
+│   │   │   ├── stats/
+│   │   │   │   └── weekly/
+│   │   │   │       └── route.ts ← GET (weekly stats for sidebar widget)
 │   │   │   └── videos/
+│   │   │       ├── continue-watching/
+│   │   │       │   └── route.ts  ← GET (up to 3 in_progress videos with course info, for dashboard)
 │   │   │       └── [id]/
 │   │   │           ├── route.ts  ← PATCH (update video watch state)
 │   │   │           └── notes/
@@ -47,38 +63,44 @@ focustube/
 │   │   │   └── [id]/
 │   │   │       └── page.tsx   ← Course detail server component, delegates to CourseContent
 │   │   ├── dashboard/
-│   │   │   └── page.tsx       ← Dashboard: course cards grid + import form
+│   │   │   └── page.tsx       ← Dashboard: course cards with progress bars, search filter, Continue Watching section, import form
+│   │   ├── notes/
+│   │   │   └── page.tsx       ← All Notes page: notes grouped by course, search, modal editor
+│   │   ├── settings/
+│   │   │   └── page.tsx       ← Settings page
 │   │   ├── sign-in/
 │   │   │   └── page.tsx       ← Server Action-based Google sign-in page
 │   │   ├── favicon.ico        ← Default Next.js favicon
 │   │   ├── globals.css        ← Tailwind v4 import + CSS variables
-│   │   ├── layout.tsx         ← Root HTML shell: Navbar + children, wraps with SessionProvider
+│   │   ├── layout.tsx         ← Root HTML shell: LayoutShell + SessionProvider
 │   │   └── page.tsx           ← Landing page (redirects authed users to /dashboard)
 │   ├── components/
-│   │   ├── AuthButton.tsx     ← Client Component: user avatar dropdown / sign in button
-│   │   ├── CourseContent.tsx  ← Client Component: YouTube iframe embed + video list + notes modal
-│   │   ├── Navbar.tsx         ← Client-side Navbar wrapping AuthButton
-│   │   └── NoteEditor.tsx     ← Tiptap rich text editor with toolbar + debounced autosave
+│   │   ├── layout/
+│   │   │   ├── LayoutShell.tsx ← Shell: Navbar + collapsible Sidebar + main content
+│   │   │   ├── Navbar.tsx     ← Client-side Navbar wrapping AuthButton
+│   │   │   ├── Sidebar.tsx    ← Collapsible sidebar: nav links, weekly progress, user info
+│   │   │   └── AuthButton.tsx ← User avatar dropdown / sign in button
+│   │   ├── course/
+│   │   │   └── CourseContent.tsx ← YouTube iframe embed + video list + notes modal
+│   │   ├── notes/
+│   │   │   └── NoteEditor.tsx ← Tiptap rich text editor with toolbar + debounced autosave
+│   │   └── search/
+│   │       └── SearchOverlay.tsx ← Global course search overlay
 │   ├── lib/
 │   │   ├── db.ts              ← Prisma client singleton with PrismaPg driver adapter
 │   │   └── youtube.ts         ← YouTube Data API v3: extractPlaylistId, fetchPlaylistData, fetchPlaylistItems
 │   ├── auth.ts                ← NextAuth v5 Config (adapter, Google provider, JWT callbacks)
-│   ├── proxy.ts               ← Route protection (NextAuth v5 auth check for /dashboard, /courses)
+│   └── proxy.ts               ← Route protection (NextAuth v5 auth check for /dashboard, /courses)
 ├── .env.example               ← Safe-to-commit template with empty values
 ├── .env.local                 ← Actual secrets — NEVER commit (gitignored)
 ├── .gitignore                 ← Ignores node_modules/, .next/, .env.local
-├── AGENTS.md                  ← Warnings/rules for AI assistants
-├── CLAUDE.md                  ← Quick link to AGENTS.md
-├── agent.md                   ← High-density context for AI agents
 ├── eslint.config.mjs          ← ESLint flat config
-├── issues.md                  ← Current issues tracker
 ├── next-env.d.ts              ← Auto-generated Next.js types
 ├── next.config.ts             ← Empty Next.js config
 ├── package.json               ← npm dependencies and script configuration
 ├── package-lock.json          ← Lock file
 ├── postcss.config.mjs         ← PostCSS pipeline for Tailwind v4
 ├── prisma.config.ts           ← Prisma 7 config (connection URL, schema path)
-├── todo.md                    ← Build tracker + design decisions
 └── tsconfig.json              ← TypeScript config (strict mode & path aliases)
 ```
 
@@ -130,7 +152,7 @@ YouTube Data API v3 utility functions:
 The primary HTML skeleton of the app.
 - Imports standard font variables.
 - Wraps the entire layout with a NextAuth `SessionProvider` so components can call `useSession()`.
-- Renders the custom global `<Navbar />`.
+- Renders the custom `<LayoutShell />` which orchestrates Navbar + Sidebar + main content.
 
 ### `src/app/page.tsx`
 The root landing page (`/`).
@@ -140,11 +162,14 @@ The root landing page (`/`).
 
 ### `src/app/dashboard/page.tsx`
 Client-side dashboard page (`/dashboard`).
-- Fetches all user courses from `GET /api/courses`
-- Shows course cards with thumbnails, titles, and video counts
+- Fetches all user courses from `GET /api/courses` (now includes `_count.completedVideos`)
+- Fetches continue-watching videos from `GET /api/videos/continue-watching`
+- Shows course cards with thumbnails, titles, video counts, progress bar + "X/Y completed"
+- Client-side search filter that filters courses by title in real-time
+- "Continue Watching" section at top showing up to 3 in-progress video cards with play overlay, duration badge, course name
 - Contains an import form: paste YouTube playlist URL → calls `POST /api/courses` → redirects to new course page
 - Handles duplicate import (409) by redirecting to existing course
-- Shows empty state when no courses exist
+- Shows empty state when no courses exist or no courses match search
 
 ### `src/app/courses/[id]/page.tsx`
 Server component for the course detail page (`/courses/[id]`).
@@ -153,7 +178,7 @@ Server component for the course detail page (`/courses/[id]`).
 - Verifies ownership — calls `notFound()` if user doesn't own the course
 - Delegates all rendering to the `CourseContent` client component
 
-### `src/components/CourseContent.tsx`
+### `src/components/course/CourseContent.tsx`
 Client component that provides the interactive course experience:
 - **Modal video player**: Clicking a video opens a centered modal with YouTube iframe embed (autoplay enabled)
 - **Modal features**: Dark backdrop (`bg-black/70` + `backdrop-blur-sm`), close via X button, Escape key, or clicking outside the player
@@ -167,11 +192,35 @@ Client component that provides the interactive course experience:
 - **Course header**: Shows title, thumbnail, video count, completed count, and progress bar
 
 ### `src/app/api/courses/route.ts`
-- `GET /api/courses`: Returns all courses for the authenticated user with video counts, sorted by most recently updated
+- `GET /api/courses`: Returns all courses for the authenticated user with video counts AND per-course completed video count (via parallel `groupBy`), sorted by most recently updated
 - `POST /api/courses`: Imports a YouTube playlist — extracts playlist ID, fetches metadata + videos from YouTube API, creates Course + Video rows in a Prisma transaction. Returns 409 if user already imported the same playlist
 
 ### `src/app/api/courses/[id]/route.ts`
 - `GET /api/courses/[id]`: Returns a single course with all its videos (ordered by position). Includes ownership check (403 if forbidden, 404 if not found)
+
+### `src/app/api/notes/route.ts`
+- `GET /api/notes`: Returns all notes for the authenticated user with video title, course title, and YouTube video ID. Ownership enforced via `Note → Video → Course → User` chain. Ordered by most recently updated.
+
+### `src/app/notes/page.tsx`
+Client-side All Notes page (`/notes`).
+- Fetches all user notes from `GET /api/notes`
+- Groups notes by course title
+- Each note card shows video title, course name, plain-text preview (first ~100 chars), and time-ago timestamp
+- Search input filters by note text content or video title (client-side)
+- Clicking a note opens a modal with the shared `NoteEditor` component (Tiptap editor), reusing the save/close pattern from the course page
+- Empty state: "No notes yet — start adding notes while watching videos."
+
+### `src/components/layout/Navbar.tsx`
+Client component rendering the top navigation bar with the app logo, search toggle, and auth controls.
+
+### `src/components/layout/Sidebar.tsx`
+Client component for the collapsible sidebar with navigation links (Dashboard, All Notes, Settings), weekly progress ring, and user info panel.
+
+### `src/components/layout/LayoutShell.tsx`
+Client component that orchestrates the full-page layout: full-width Navbar on top, collapsible Sidebar on the left, and main content area on the right.
+
+### `src/components/search/SearchOverlay.tsx`
+Client component providing a global search overlay for quickly navigating to courses. Supports keyboard navigation (arrow keys, Enter, Escape).
 
 ### `src/app/globals.css`
 Tailwind CSS v4 entry point. Configures native CSS variables and themes inside `@theme inline` (replacing the legacy `tailwind.config.js` or `tailwind.config.ts`).

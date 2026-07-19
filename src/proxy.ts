@@ -13,7 +13,7 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const pathname = req.nextUrl.pathname;
 
-  const protectedPaths = ["/dashboard", "/courses"];
+  const protectedPaths = ["/dashboard", "/courses", "/notes", "/settings"];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected && !isLoggedIn) {
@@ -25,5 +25,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/courses/:path*"],
+  matcher: ["/dashboard/:path*", "/courses/:path*", "/notes/:path*", "/settings/:path*"],
 };

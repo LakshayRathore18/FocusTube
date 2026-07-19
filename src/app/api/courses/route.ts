@@ -16,13 +16,50 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const courses = await db.course.findMany({
-    where: { userId },
-    include: { _count: { select: { videos: true } } },
-    orderBy: { updatedAt: "desc" },
-  });
+  // Fetch courses with total video count, and aggregate per-course stats
+  // in parallel to avoid an n+1 pattern.
+  const [courses, completedGroups, inProgressGroups, durationGroups] = await Promise.all([
+    db.course.findMany({
+      where: { userId },
+      include: { _count: { select: { videos: true } } },
+      orderBy: { updatedAt: "desc" },
+    }),
+    db.video.groupBy({
+      by: ["courseId"],
+      where: { course: { userId }, status: "completed" },
+      _count: { id: true },
+    }),
+    db.video.groupBy({
+      by: ["courseId"],
+      where: { course: { userId }, status: "in_progress" },
+      _count: { id: true },
+    }),
+    db.video.groupBy({
+      by: ["courseId"],
+      where: { course: { userId }, status: { not: "completed" }, durationSeconds: { not: null } },
+      _sum: { durationSeconds: true },
+    }),
+  ]);
 
-  return NextResponse.json(courses);
+  // Build lookups
+  const completedMap = new Map(completedGroups.map((g) => [g.courseId, g._count.id]));
+  const inProgressMap = new Map(inProgressGroups.map((g) => [g.courseId, g._count.id]));
+  const remainingDurationMap = new Map(
+    durationGroups.map((g) => [g.courseId, g._sum.durationSeconds ?? 0])
+  );
+
+  // Merge stats into each course response
+  const enriched = courses.map((c) => ({
+    ...c,
+    _count: {
+      videos: c._count.videos,
+      completedVideos: completedMap.get(c.id) ?? 0,
+      inProgressVideos: inProgressMap.get(c.id) ?? 0,
+    },
+    remainingDurationSeconds: remainingDurationMap.get(c.id) ?? 0,
+  }));
+
+  return NextResponse.json(enriched);
 }
 
 /**

@@ -89,12 +89,16 @@
   - [x] Save status indicator: idle → saving → saved / error
   - [x] Ownership verified via Video → Course → User chain
 
+### ✅ Completed
+
+- [x] **Dashboard enhancements**: search filter, progress bars on course cards, Continue Watching section(#)
+
 ### 🔄 In Progress
 
 - [ ] **Step 7 — AI: summary + quiz (synchronous)**
+  - [x] YouTube transcript fetching utility (`src/lib/transcript.ts` + test route)
   - [ ] Swappable AI provider interface `src/lib/ai/provider.ts`
   - [ ] Gemini implementation `src/lib/ai/gemini.ts`
-  - [ ] YouTube transcript fetching utility
   - [ ] `POST /api/ai/content` — check AIContent → insert pending → generate → save ready
   - [ ] Unique constraint on `youtubeVideoId` handles race (first insert wins, second reads)
   - [ ] Return summary + quiz JSON to client
@@ -105,37 +109,16 @@
   - [ ] Search UI (dashboard or notes panel)
   - [ ] No external search service
 
----
+### ✅ Completed (Current Session)
 
-## Environment Variables
-
-```env
-# .env.local (never commit)
-
-DATABASE_URL=              # Neon connection string
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=           # openssl rand -base64 32
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-YOUTUBE_API_KEY=
-GEMINI_API_KEY=
-```
+- [x] **All Notes page** (`/notes`) — fetch notes with video+course info via `GET /api/notes`, group by course, search by content/title, modal editor reuse
+- [x] **Codebase restructuring** — moved docs to `docs/`, grouped components into `layout/`, `course/`, `notes/`, `search/` subdirectories
+- [x] **Transcript fetching utility** (`src/lib/transcript.ts`) — wraps `youtube-transcript-plus` with typed error handling
+- [x] **Transcript test route** (`src/app/api/test-transcript/route.ts`) — temp GET handler to validate against real videos
+- [x] **Transcript QA page** (`src/app/test-transcript/page.tsx`) — temp UI form + history list for manual pipeline testing
 
 ---
 
-## Key Design Decisions (interview-ready)
 
-**Why shared AIContent by youtubeVideoId, not per user?**
-Cost and dedup. Two users importing the same video share one AI call. The unique constraint on `youtubeVideoId` is a lightweight distributed lock — the second concurrent insert fails with a unique violation and falls back to reading the existing row. AI cost grows sub-linearly with users.
 
-**Why is watch state on Video, not a separate UserVideoProgress table?**
-A `Video` already belongs to one user via `Course → User`. Denormalization eliminates a join on every player load. If we ever support shared courses (multi-user per course), we'd extract a progress table at that point — not before.
 
-**Why JWT sessions, not DB sessions?**
-Vercel serverless functions are stateless. JWT sessions are stored in a signed cookie — zero DB reads per authenticated request. DB sessions would require a `Session` table and a read on every request, burning free-tier connection budget. We skip `Session` and `VerificationToken` tables entirely.
-
-**Why synchronous AI, not a job queue?**
-Vercel Hobby gives 60s per invocation. Most videos fit. Setting up QStash speculatively means job IDs, polling routes, retry logic — real complexity for a problem we haven't hit. Add it when we get an actual timeout error.
-
-**Why Postgres full-text search, not Algolia/Elasticsearch?**
-Free-tier constraint. Postgres `tsvector` + GIN index handles note-search at our scale. External search adds cost and ops overhead we don't need.

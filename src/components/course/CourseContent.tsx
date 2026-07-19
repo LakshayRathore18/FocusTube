@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import NoteEditor from "./NoteEditor";
+import NoteEditor, { type NoteEditorHandle } from "../notes/NoteEditor";
 
 type Video = {
   id: string;
@@ -110,10 +110,18 @@ function NotesModal({
   onHasContentChange?: (videoId: string, hasContent: boolean) => void;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const noteEditorRef = useRef<NoteEditorHandle>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const flushAndClose = useCallback(async () => {
+    await noteEditorRef.current?.flushAndSave();
+    onCloseRef.current();
+  }, []);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") flushAndClose();
     }
     document.addEventListener("keydown", handleKey);
     document.body.style.overflow = "hidden";
@@ -121,16 +129,16 @@ function NotesModal({
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = "";
     };
-  }, [onClose]);
+  }, [flushAndClose]);
 
   return (
     <div
       ref={overlayRef}
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      onClick={(e) => { if (e.target === overlayRef.current) flushAndClose(); }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
     >
       <div
-        className="w-full max-w-[600px] rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
+        className="w-full max-w-[800px] rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -144,7 +152,7 @@ function NotesModal({
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={flushAndClose}
             className="shrink-0 ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
             aria-label="Close notes"
           >
@@ -156,7 +164,121 @@ function NotesModal({
 
         {/* Editor */}
         <div className="p-5">
-          <NoteEditor videoId={video.id} onHasContentChange={onHasContentChange} />
+          <NoteEditor ref={noteEditorRef} videoId={video.id} onHasContentChange={onHasContentChange} />
+        </div>
+
+        {/* Save & Close footer */}
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-zinc-800">
+          <button
+            onClick={flushAndClose}
+            className="rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-5 py-2 text-sm font-semibold text-white transition-colors"
+          >
+            Save &amp; Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Video Player Modal ─────────────────────────────────────────────────────
+
+function VideoPlayerModal({
+  video,
+  onClose,
+  onMarkCompleted,
+  onOpenNotes,
+}: {
+  video: Video;
+  onClose: () => void;
+  onMarkCompleted: (videoId: string) => void;
+  onOpenNotes: (video: Video) => void;
+}) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCloseRef.current();
+    }
+    document.addEventListener("keydown", handleKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+    >
+      <div
+        className="w-full max-w-4xl rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-zinc-800">
+          <div className="min-w-0 flex-1">
+            <span className="text-xs font-medium text-blue-600 dark:text-blue-400 shrink-0">Now Playing</span>
+            <h2 className="text-sm font-medium text-gray-900 dark:text-white truncate mt-0.5">{video.title}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+            aria-label="Close player"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Video */}
+        <div className="bg-black">
+          <div className="aspect-video max-h-[60vh] mx-auto">
+            <iframe
+              src={`https://www.youtube.com/embed/${video.youtubeVideoId}?autoplay=1&rel=0`}
+              title={video.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="w-full h-full"
+            />
+          </div>
+        </div>
+
+        {/* Bottom bar: quick actions */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-zinc-800">
+          <button
+            onClick={() => onOpenNotes(video)}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+            </svg>
+            Notes
+          </button>
+          {video.status !== "completed" ? (
+            <button
+              onClick={() => { onMarkCompleted(video.id); onClose(); }}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              Mark complete
+            </button>
+          ) : (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              Completed
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -165,7 +287,7 @@ function NotesModal({
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function CourseContent({ course }: { course: Course }) {
+export default function CourseContent({ course, playVideoId }: { course: Course; playVideoId?: string }) {
   const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
   const [noteModalVideoId, setNoteModalVideoId] = useState<string | null>(null);
   const [videosWithNotes, setVideosWithNotes] = useState<Record<string, boolean>>({});
@@ -229,6 +351,22 @@ export default function CourseContent({ course }: { course: Course }) {
 
   const noteModalVideo = resolvedVideos.find((v) => v.id === noteModalVideoId) ?? null;
 
+  // Auto-play a video on mount:
+  //   - If ?play=VIDEO_ID is provided, play that specific video
+  //   - Otherwise play the first in_progress (or first not_started) video
+  //     (used when navigating from dashboard "Continue Learning" / "Start Course" buttons)
+  useEffect(() => {
+    const target = playVideoId
+      ? resolvedVideos.find((v) => v.id === playVideoId && v.isAvailable)
+      : resolvedVideos.find((v) => v.status === "in_progress" && v.isAvailable) ??
+        resolvedVideos.find((v) => v.status === "not_started" && v.isAvailable);
+    if (target) {
+      handlePlayVideo(target);
+    }
+    // We intentionally only run this on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Back link */}
@@ -280,70 +418,14 @@ export default function CourseContent({ course }: { course: Course }) {
         </div>
       </div>
 
-      {/* ── Now Playing: video + notes side by side ────────────────────── */}
+      {/* ── Video Player Modal ───────────────────────────────────────── */}
       {activeVideo && activeVideo.isAvailable && (
-        <div className="mb-8 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-md">
-          {/* Title bar */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-800">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs font-medium text-blue-600 dark:text-blue-400 shrink-0">Now Playing</span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{activeVideo.title}</span>
-            </div>
-            <button
-              onClick={() => setPlayingVideo(null)}
-              className="shrink-0 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Close player"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Video player only (notes moved to modal) */}
-          <div className="bg-black">
-            <div className="aspect-video max-h-[60vh] mx-auto">
-              <iframe
-                src={`https://www.youtube.com/embed/${activeVideo.youtubeVideoId}?autoplay=1&rel=0`}
-                title={activeVideo.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full"
-              />
-            </div>
-          </div>
-
-          {/* Bottom bar: quick actions */}
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-gray-800">
-            <button
-              onClick={() => handleOpenNotes(activeVideo)}
-              className="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-              </svg>
-              Notes
-            </button>
-            {activeVideo.status !== "completed" ? (
-              <button
-                onClick={() => handleMarkCompleted(activeVideo.id)}
-                className="flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Mark complete
-              </button>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-green-500">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Completed
-              </span>
-            )}
-          </div>
-        </div>
+        <VideoPlayerModal
+          video={activeVideo}
+          onClose={() => setPlayingVideo(null)}
+          onMarkCompleted={handleMarkCompleted}
+          onOpenNotes={handleOpenNotes}
+        />
       )}
 
       {/* Video list */}
@@ -412,26 +494,6 @@ export default function CourseContent({ course }: { course: Course }) {
                   </p>
                 </div>
 
-                {/* Notes icon button — left of Play */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenNotes(video);
-                  }}
-                  className="shrink-0 rounded-lg border border-gray-300 dark:border-zinc-700 p-2 text-gray-400 dark:text-zinc-500 hover:text-blue-500 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-600 transition-all"
-                  aria-label="Open notes"
-                >
-                  {hasNotes ? (
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32L19.513 8.2Z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                    </svg>
-                  )}
-                </button>
-
                 {video.isAvailable ? (
                   <button
                     onClick={(e) => { e.stopPropagation(); handlePlayVideo(video); }}
@@ -446,6 +508,30 @@ export default function CourseContent({ course }: { course: Course }) {
                 ) : (
                   <span className="text-xs text-red-500 dark:text-red-400 shrink-0">Unavailable</span>
                 )}
+
+                {/* Notes icon button — right of Play */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenNotes(video);
+                  }}
+                  className={`shrink-0 rounded-lg border p-2 transition-all ${
+                    hasNotes
+                      ? "border-blue-500/60 dark:border-blue-400/50 bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400"
+                      : "border-gray-300 dark:border-zinc-700 text-gray-400 dark:text-zinc-500 hover:text-blue-500 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-600"
+                  }`}
+                  aria-label="Open notes"
+                >
+                  {hasNotes ? (
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32L19.513 8.2Z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                    </svg>
+                  )}
+                </button>
               </div>
             </div>
           );

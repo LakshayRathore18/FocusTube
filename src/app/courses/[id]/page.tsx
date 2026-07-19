@@ -1,12 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import CourseContent from "@/components/CourseContent";
+import CourseContent from "@/components/course/CourseContent";
 
 export default async function CoursePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await auth();
   const userId = session?.user?.id;
@@ -36,12 +38,16 @@ export default async function CoursePage({
     notFound();
   }
 
+  const { play } = await searchParams;
+  const playVideoId = typeof play === "string" ? play : undefined;
+
   return (
     <CourseContent
       course={{
         ...course,
         _count: { videos: videoCount },
       }}
+      playVideoId={playVideoId}
     />
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -83,17 +83,46 @@ function formatTimeAgo(date: Date): string {
 
 // ─── NoteEditor component ────────────────────────────────────────────────────
 
+export type NoteEditorHandle = {
+  /** Force-save any pending changes immediately. Returns a promise that
+   *  resolves when the save request completes (success or failure). */
+  flushAndSave: () => Promise<void>;
+};
+
 interface NoteEditorProps {
   videoId: string;
   onHasContentChange?: (videoId: string, hasContent: boolean) => void;
 }
 
-export default function NoteEditor({ videoId, onHasContentChange }: NoteEditorProps) {
+const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
+  ({ videoId, onHasContentChange }, ref) => {
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialContentSet = useRef(false);
+  const lastHtmlRef = useRef<string>("<p></p>");
+  // Track the latest in-flight fetch so flushAndSave can await it
+  const savePromiseRef = useRef<Promise<void> | null>(null);
+
+  function saveContent(html: string): Promise<void> {
+    const promise = fetch(`/api/videos/${videoId}/notes`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: html }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Save failed");
+        setSaveState("saved");
+        setLastSaved(new Date());
+      })
+      .catch(() => {
+        setSaveState("error");
+      });
+
+    savePromiseRef.current = promise;
+    return promise;
+  }
 
   const editor = useEditor({
     extensions: [
@@ -109,32 +138,43 @@ export default function NoteEditor({ videoId, onHasContentChange }: NoteEditorPr
     editorProps: {
       attributes: {
         class:
-          "focus:outline-none min-h-[120px] px-4 py-3 text-sm leading-relaxed text-zinc-200 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-zinc-100 [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-zinc-100 [&_h3]:mt-3 [&_h3]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:text-zinc-200 [&_li_p]:m-0 [&_p]:text-zinc-200 [&_p]:leading-relaxed [&_p.is-editor-empty]:before:text-zinc-600",
+          "focus:outline-none min-h-[300px] px-4 py-3 text-sm leading-relaxed text-zinc-200 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-zinc-100 [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-zinc-100 [&_h3]:mt-3 [&_h3]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:text-zinc-200 [&_li_p]:m-0 [&_p]:text-zinc-200 [&_p]:leading-relaxed [&_p.is-editor-empty]:before:text-zinc-600",
       },
     },
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML();
+      lastHtmlRef.current = html;
 
-      // Debounced autosave ~1.5s
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         setSaveState("saving");
-        fetch(`/api/videos/${videoId}/notes`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: html }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error("Save failed");
-            setSaveState("saved");
-            setLastSaved(new Date());
-          })
-          .catch(() => {
-            setSaveState("error");
-          });
+        saveContent(html);
       }, 1500);
     },
   });
+
+  // Expose flushAndSave via imperative handle so the parent modal can force-save
+  useImperativeHandle(
+    ref,
+    () => ({
+      flushAndSave: async () => {
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+        if (!editor) return;
+        const html = editor.getHTML();
+        if (html === lastHtmlRef.current && savePromiseRef.current) {
+          // Content unchanged & a save is already in flight — wait for it
+          await savePromiseRef.current;
+          return;
+        }
+        setSaveState("saving");
+        await saveContent(html);
+      },
+    }),
+    [editor],
+  );
 
   // Fetch existing note on mount and set it once
   useEffect(() => {
@@ -143,6 +183,7 @@ export default function NoteEditor({ videoId, onHasContentChange }: NoteEditorPr
       .then((data) => {
         if (data && data.content && editor && !initialContentSet.current) {
           initialContentSet.current = true;
+          lastHtmlRef.current = data.content;
           editor.commands.setContent(data.content);
           onHasContentChange?.(videoId, true);
         } else {
@@ -162,7 +203,7 @@ export default function NoteEditor({ videoId, onHasContentChange }: NoteEditorPr
 
   if (!loaded || !editor) {
     return (
-      <div className="animate-pulse h-[120px] rounded-lg bg-zinc-800/50" />
+      <div className="animate-pulse h-[300px] rounded-lg bg-zinc-800/50" />
     );
   }
 
@@ -243,4 +284,6 @@ export default function NoteEditor({ videoId, onHasContentChange }: NoteEditorPr
       <EditorContent editor={editor} />
     </div>
   );
-}
+});
+
+export default NoteEditor;

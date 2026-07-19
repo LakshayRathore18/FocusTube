@@ -1,5 +1,6 @@
 # Issues to Resolve
 
+---
 
 ## Before You Start
 
@@ -16,9 +17,26 @@ Do not assume the project structure from previous tasks or memory. Follow the ex
 
 ---
 
-## Current Issues
+## Open Issues/To do
 
-read all docs folder file and i think agent agents.md file is repeated maybe only one needed merge them ? 
+
+Reasonable — easier to run through the 4-5 test cases with a form than copy-pasting URLs into the browser bar. Keep it minimal and temporary, same as the route.
+
+---
+
+Create a small temporary UI page to manually test the transcript pipeline, replacing manual URL testing of `/api/test-transcript`.
+
+**Create `src/app/test-transcript/page.tsx`** (client component):
+- Simple form: one text input for a YouTube video ID (or full URL — if a full URL is pasted, extract the ID client-side using the same/similar logic as `extractPlaylistId` in `lib/youtube.ts`, or just accept raw IDs to keep it simple, your call) + a "Fetch Transcript" button
+- On submit, calls `GET /api/test-transcript?videoId=...` and shows a loading state while waiting
+- Displays the result clearly:
+  - If `success: true` — show `transcriptLength` and the `preview` text in a scrollable box
+  - If `success: false` — show the `reason` code prominently (this is the important part, since we're validating error classification)
+- Keep a running list on the page of the last 5-10 test attempts (videoId + result), so multiple test cases can be compared side by side without re-running each one — a simple array in component state is enough, no persistence needed
+- No auth check, no styling polish — plain Tailwind utility classes, functional over pretty
+- Add a comment at the top: `// TEMP: manual QA page for transcript pipeline, delete once validated`
+
+Don't touch `src/lib/transcript.ts` or the API route — this only consumes the existing endpoint.
 
 ---
 
@@ -41,7 +59,6 @@ Update `agent.md` only if the implementation changes long-term project context, 
 - New dependencies or project-wide behavior
 
 Keep entries concise. Do not duplicate implementation details that belong in the source code.
-
 
 ### `structure.md` (Human documentation)
 
