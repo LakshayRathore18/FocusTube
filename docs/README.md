@@ -105,3 +105,6 @@ When two users request AI notes for the same video simultaneously, only one INSE
 
 **Real-time sidebar stats:**
 When a video status changes, a custom `refresh-stats` DOM event is dispatched, triggering the sidebar to re-fetch and update the progress ring instantly — no page refresh needed.
+
+**Production Ready:**
+The project has completed a production readiness audit and is ready for deployment on Vercel Hobby. All critical issues have been addressed, including React hooks fixes, proper Next.js Link usage, and correct ESLint compliance.

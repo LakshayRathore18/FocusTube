@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 // Prevent multiple Prisma client instances during Next.js hot-reload in dev.
 // In production, each serverless function invocation gets one fresh instance.
@@ -18,9 +17,8 @@ function createPrismaClient() {
     ? rawUrl.replace(/sslmode=\w+/g, "sslmode=verify-full")
     : rawUrl + (rawUrl.includes("?") ? "&" : "?") + "sslmode=verify-full";
 
-  const pool = new Pool({ connectionString });
-
-  const adapter = new PrismaPg(pool);
+  // PrismaNeon creates its own @neondatabase/serverless Pool internally
+  const adapter = new PrismaNeon({ connectionString });
 
   return new PrismaClient({
     adapter,

@@ -28,6 +28,7 @@ FocusTube is a video-based study platform where users import YouTube playlists a
 
 - **Stack**: Next.js 16 (Turbopack), Tailwind v4 (CSS-native config), Prisma 7, PostgreSQL (Neon), NextAuth v5 (Google OAuth, JWT session).
 - **Status**: Core features functional. Playlist import (YouTube Data API v3), course detail page with embedded YouTube player, dashboard, notes (Tiptap editor with autosave), and AI-generated study notes + quizzes are implemented. Auth & route protection are complete.
+- **Production Status**: Project is production-ready for Vercel Hobby. Production readiness audit completed on 2026-07-20 with all critical issues fixed.
 - **Current Task List**: Look at [docs/todo.md](file:///c:/CODING/WebDev/focustube/docs/todo.md) for what needs to be built next.
 
 ---

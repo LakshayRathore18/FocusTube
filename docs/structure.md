@@ -33,8 +33,9 @@ FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and 
   - Real-time sidebar stats via refresh-stats custom event
   - Cleanup script for AIContent schema migration (npm run cleanup:ai)
   - needsRegeneration route signal for stale AIContent rows
+  - Production readiness audit completed - project is production-ready for Vercel Hobby
 - **Running**: Dev server runs on `localhost:3000`.
-- **Database**: 8 tables deployed on Neon PostgreSQL. Prisma client generated and active.
+- **Database**: 6 tables deployed on Neon PostgreSQL. Prisma client generated and active.
 
 ---
 
@@ -61,7 +62,9 @@ focustube/
 │   │   │   ├── courses/
 │   │   │   │   ├── route.ts   ← GET (list courses) + POST (import playlist)
 │   │   │   │   └── [id]/
-│   │   │   │       └── route.ts ← GET (single course with videos, ownership check)
+│   │   │   │       ├── route.ts ← GET (single course with videos, ownership check) + DELETE (delete course cascading to videos/notes)
+│   │   │   │       └── content-status/
+│   │   │   │           └── route.ts ← GET (batch notes + AI status per video, reads Video.aiContentUnlockedAt)
 │   │   │   ├── notes/
 │   │   │   │   └── route.ts   ← GET (all notes with video + course info, for /notes page)
 │   │   │   ├── stats/
@@ -75,16 +78,13 @@ focustube/
 │   │   │       │   └── route.ts  ← GET (up to 3 in_progress videos with course info, for dashboard)
 │   │   │       └── [id]/
 │   │   │           ├── route.ts  ← PATCH (update video watch state)
-│   │   │           └── notes/
-│   │   │               └── route.ts ← GET/PUT (fetch/upsert notes)
-│   │   │       └── content-status/│   │   │       └── route.ts ← GET (batch notes + AI status per video, reads Video.aiContentUnlockedAt)
+│   │   │           ├── notes/
+│   │   │           │   └── route.ts ← GET/PUT (fetch/upsert notes)
+│   │   │           └── ai-content/
+│   │   │               └── route.ts ← GET (lazy fetch summary+quiz, returns needsRegeneration if stale)
 │   │   ├── courses/
 │   │   │   └── [id]/
 │   │   │       └── page.tsx   ← Course detail server component, delegates to CourseContent
-│   │   └── videos/
-│   │       └── [id]/
-│   │           └── ai-content/
-│   │               └── route.ts ← GET (lazy fetch summary+quiz, returns needsRegeneration if stale)
 │   │   ├── dashboard/
 │   │   │   └── page.tsx       ← Dashboard: course cards with progress bars, search filter, Continue Watching section, import form
 │   │   ├── notes/
@@ -299,9 +299,16 @@ Main orchestrator component (~350 lines) that imports all sub-components. Manage
 
 ### `src/app/api/courses/[id]/route.ts`
 - `GET /api/courses/[id]`: Returns a single course with all its videos (ordered by position). Includes ownership check (403 if forbidden, 404 if not found)
+- `DELETE /api/courses/[id]`: Deletes a course and cascades to videos and notes. Preserves shared AIContent rows. Includes ownership check.
 
 ### `src/app/api/notes/route.ts`
 - `GET /api/notes`: Returns all notes for the authenticated user with video title, course title, and YouTube video ID. Ownership enforced via `Note → Video → Course → User` chain. Ordered by most recently updated.
+
+### `src/app/api/courses/[id]/content-status/route.ts`
+- `GET /api/courses/[id]/content-status`: Returns per-video `hasNotes` and `aiStatus` ("ready"/"pending"/"failed"/"none") by reading `Video.aiContentUnlockedAt` + global AIContent status. Used by CourseContent on mount to pre-populate button states. Summary and quiz payloads are intentionally excluded for performance.
+
+### `src/app/api/videos/[id]/ai-content/route.ts`
+- `GET /api/videos/[id]/ai-content`: Lazy-fetches summary+quiz for a single video. Returns `{ needsRegeneration: true }` when AIContent row is missing/stale despite unlock stamp, so frontend can offer regeneration. Ownership check enforced.
 
 ### `src/app/notes/page.tsx`
 Client-side All Notes page (`/notes`).

@@ -16,7 +16,10 @@ export default function VideoPlayerModal({
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {

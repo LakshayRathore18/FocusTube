@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -95,7 +95,7 @@ interface NoteEditorProps {
 }
 
 const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
-  ({ videoId, onHasContentChange }, ref) => {
+  function NoteEditor({ videoId, onHasContentChange }, ref) {
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -105,7 +105,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   // Track the latest in-flight fetch so flushAndSave can await it
   const savePromiseRef = useRef<Promise<void> | null>(null);
 
-  function saveContent(html: string): Promise<void> {
+  const saveContent = useCallback((html: string): Promise<void> => {
     const promise = fetch(`/api/videos/${videoId}/notes`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
     savePromiseRef.current = promise;
     return promise;
-  }
+  }, [videoId, onHasContentChange]);
 
   const editor = useEditor({
     extensions: [
@@ -175,7 +175,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         await saveContent(html);
       },
     }),
-    [editor],
+    [editor, saveContent],
   );
 
   // Fetch existing note on mount and set it once
@@ -194,7 +194,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
-  }, [videoId, editor]);
+  }, [videoId, editor, onHasContentChange]);
 
   // Cleanup debounce on unmount
   useEffect(() => {

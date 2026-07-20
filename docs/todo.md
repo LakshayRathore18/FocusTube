@@ -1,6 +1,6 @@
 # FocusTube — Project TODO
 
-> Last updated: 2026-07-14
+> Last updated: 2026-07-20
 > Distraction-free YouTube study platform. Paste playlist URL → structured course → watch in-app → notes + AI summaries/quizzes.
 
 ---
@@ -90,21 +90,29 @@
   - [x] Ownership verified via Video → Course → User chain
 
 
-### 🔄 In Progress — Step 6: AI Notes + Quiz (current focus)
+### ✅ Completed
 
-- [ ] `src/lib/ai/provider.ts` — swappable `AIProvider` interface
-- [ ] `src/lib/ai/gemini.ts` — move existing Gemini logic here, implementing the interface (retire flat `src/lib/gemini.ts` once migrated)
-- [ ] `POST /api/ai/content` — real route (replaces temp `/api/test-generate-notes`):
-  - [ ] Try-insert pending `AIContent` row keyed by `youtubeVideoId` (global dedup, not per-user)
-  - [ ] Winner: fetch transcript → call Gemini → update row to `ready`/`failed` (`attempts`, `lastAttemptedAt` tracked on failure)
-  - [ ] Loser (unique violation / P2002): read existing row, return as-is — no retry, no wait
-  - [ ] If row exists with `status: "failed"` and `attempts < 3`: retry inline on next request
-  - [ ] If `attempts >= 3`: return permanent failure, no further retries
-- [ ] Frontend: explicit "Generate Notes" button per video in `CourseContent.tsx` (icon button, same pattern as existing Notes button)
-- [ ] Frontend polling: re-POST the same idempotent endpoint every ~2s while `status: "pending"`, capped at ~30s before showing "still processing" — no separate GET/status endpoint needed
-- [ ] Display summary + quiz in a modal (reuse existing modal styling)
-- [ ] Delete temp files once confirmed working: `src/app/test-transcript/page.tsx`, `/api/test-transcript`, `/api/test-gemini`, `/api/test-generate-notes`
-- [ ] Manually verify the race: trigger the same video from two tabs at once, confirm only one Gemini call fires (check logs/attempts)
+- [x] **Step 6 — AI Notes + Quiz**
+  - [x] `src/lib/ai/provider.ts` — swappable `AIProvider` interface
+  - [x] `src/lib/ai/gemini.ts` — Gemini provider implementing AIProvider with `@google/genai` SDK
+  - [x] `POST /api/ai/content` — production AI content generation endpoint:
+    - [x] Try-insert pending `AIContent` row keyed by `youtubeVideoId` (global dedup, not per-user)
+    - [x] Winner: fetch transcript → call Gemini → update row to `ready`/`failed` (`attempts`, `lastAttemptedAt` tracked on failure)
+    - [x] Loser (unique violation / P2002): read existing row, return as-is — no retry, no wait
+    - [x] If row exists with `status: "failed"` and `attempts < 3`: retry inline on next request
+    - [x] If `attempts >= 3`: return permanent failure, no further retries
+    - [x] Transcript truncation to 20,000 chars for Vercel Hobby 60s timeout mitigation
+  - [x] Frontend: explicit "Generate Notes" button per video in `CourseContent.tsx` with 4 visual states (idle, generating, ready, failed)
+  - [x] Frontend polling: re-POST the same idempotent endpoint every 2s while `status: "pending"`, capped at 15 attempts (30s total)
+  - [x] Display summary + quiz in tabbed modal (Summary tab with hook + keyPoints, Quiz tab with clickable options)
+  - [x] Content-status batch endpoint for pre-populating notes/AI button states on mount
+  - [x] Per-user unlock tracking via `Video.aiContentUnlockedAt` timestamp
+  - [x] `GET /api/videos/[id]/ai-content` — lazy fetch summary+quiz for single video with `needsRegeneration` signal
+  - [x] CourseContent refactored into 6 sub-components (types, StatusBadge, NotesModal, VideoPlayerModal, AIContentModal)
+  - [x] Course delete button with confirmation modal (DELETE /api/courses/[id])
+  - [x] Real-time sidebar stats via `refresh-stats` custom event dispatch
+  - [x] Stale JWT recovery (user upsert) on playlist import
+  - [x] Cleanup script for AIContent schema migration (npm run cleanup:ai)
 
 ### 🔜 Later / Optional (nice-to-have, not required for a working product)
 
@@ -114,6 +122,9 @@
 - [ ] Daily cron sweep to retry stuck `failed` rows (only relevant once Redis/trending exist; not needed for the inline-retry-on-request approach above)
 - [ ] Full-text note search (Postgres `tsvector` + GIN index)
 - [ ] Mobile responsiveness pass across all pages
+- [ ] Replace `<img>` tags with Next.js `<Image>` component for better performance (7 locations identified in lint warnings)
+- [ ] Remove unused variables and imports (useCallback, aiContentLoading identified in lint warnings)
+- [ ] Fix React exhaustive-deps warning for pollTimersRef.current in effect cleanup
 
 ---
 

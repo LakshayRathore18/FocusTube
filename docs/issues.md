@@ -10,16 +10,19 @@ and never update this issues.md file
 
 ## Open Issues
 
-npx ts-node scripts/cleanup-ai-content.ts
-TypeError: Unknown file extension ".ts" for C:\CODING\WebDev\focustube\scripts\cleanup-ai-content.ts
-    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:219:9)
-    at defaultGetFormat (node:internal/modules/esm/get_format:245:36)
-    at defaultLoad (node:internal/modules/esm/load:120:22)
-    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:483:32)
-    at async ModuleJob._link (node:internal/modules/esm/module_job:115:19) {
-  code: 'ERR_UNKNOWN_FILE_EXTENSION'
-}
-(base) PS C:\CODING\WebDev\focustube> 
+Fix the authentication environment variables for NextAuth v5.
+
+Tasks:
+- In .env.example, replace NEXTAUTH_SECRET with AUTH_SECRET.
+- Add a comment showing how to generate it:
+  openssl rand -base64 32
+- Add AUTH_TRUST_HOST=true with a comment explaining it's required for Vercel/reverse proxies.
+- Keep NEXTAUTH_URL as localhost for development, but add a warning comment that it must be changed to the production URL when deploying.
+- Verify src/auth.ts follows current NextAuth v5 recommendations. Only make runtime changes if actually necessary.
+
+Do not refactor unrelated code.
+
+After finishing, explain every change made.
 
 ---
 

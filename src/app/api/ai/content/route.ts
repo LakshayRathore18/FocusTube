@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { getTranscript } from "@/lib/transcript";
 import { geminiProvider } from "@/lib/ai/gemini";
 
+// Vercel Hobby default timeout is 10s; this route fetches YouTube transcripts
+// and calls Gemini API, which can easily exceed that. Max allowed on Hobby is 60s.
+export const maxDuration = 60;
+
 /**
  * POST /api/ai/content
  *

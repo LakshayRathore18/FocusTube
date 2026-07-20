@@ -34,8 +34,6 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
       setTimeout(() => inputRef.current?.focus(), 50);
       document.body.style.overflow = "hidden";
     } else {
-      setQuery("");
-      setSelectedIndex(0);
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };

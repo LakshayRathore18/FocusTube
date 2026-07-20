@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import AuthButton from "./AuthButton";
 import SearchOverlay from "../search/SearchOverlay";
 import { Menu, Search } from "lucide-react";
@@ -40,10 +41,10 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           </button>
 
           {/* Logo */}
-          <a href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group">
             <PlayIcon />
             <span className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">FocusTube</span>
-          </a>
+          </Link>
         </div>
 
         {/* Right: search + auth */}

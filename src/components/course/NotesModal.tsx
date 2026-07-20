@@ -16,7 +16,10 @@ export default function NotesModal({
   const overlayRef = useRef<HTMLDivElement>(null);
   const noteEditorRef = useRef<NoteEditorHandle>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const flushAndClose = useCallback(async () => {
     await noteEditorRef.current?.flushAndSave();
