@@ -2,446 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import NoteEditor, { type NoteEditorHandle } from "../notes/NoteEditor";
-
-type Video = {
-  id: string;
-  courseId: string;
-  youtubeVideoId: string;
-  title: string;
-  position: number;
-  durationSeconds: number | null;
-  thumbnailUrl: string | null;
-  isAvailable: boolean;
-  status: string;
-  lastWatchedSeconds?: number | null;
-};
-
-type Course = {
-  id: string;
-  title: string;
-  thumbnailUrl: string | null;
-  videos: Video[];
-  _count: { videos: number };
-};
-
-type QuizPayload = {
-  questions: { question: string; options: string[]; answer: number }[];
-};
-
-type AiGenerationState = {
-  status: "idle" | "generating" | "pending" | "ready" | "failed";
-  summary?: string;
-  quiz?: QuizPayload;
-  reason?: string;
-};
-
-// ─── Status indicator SVGs ──────────────────────────────────────────────────
-
-function NotStartedRing() {
-  return (
-    <svg className="w-8 h-8 -rotate-90" viewBox="0 0 24 24" fill="none">
-      <circle
-        cx="12" cy="12" r="9"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-gray-400 dark:text-gray-500"
-      />
-    </svg>
-  );
-}
-
-function InProgressRing({ progress = 40 }: { progress?: number }) {
-  const r = 9;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (progress / 100) * circumference;
-
-  return (
-    <svg className="w-8 h-8 -rotate-90" viewBox="0 0 24 24" fill="none">
-      <circle
-        cx="12" cy="12" r={r}
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-gray-300 dark:text-gray-600"
-      />
-      <circle
-        cx="12" cy="12" r={r}
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        className="text-amber-500"
-      />
-    </svg>
-  );
-}
-
-function CompletedCheck() {
-  return (
-    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-      <svg
-        className="w-4 h-4 text-white"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={3}
-        stroke="currentColor"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m4.5 12.75 6 6 9-13.5"
-        />
-      </svg>
-    </div>
-  );
-}
-
-function StatusBadge({ video }: { video: Video }) {
-  if (video.status === "completed") return <CompletedCheck />;
-  if (video.status === "in_progress") {
-    const pct =
-      video.durationSeconds && video.lastWatchedSeconds
-        ? Math.min(100, Math.round((video.lastWatchedSeconds / video.durationSeconds) * 100))
-        : 40;
-    return <InProgressRing progress={pct} />;
-  }
-  return <NotStartedRing />;
-}
-
-// ─── Notes Modal ────────────────────────────────────────────────────────────
-
-function NotesModal({
-  video,
-  onClose,
-  onHasContentChange,
-}: {
-  video: Video;
-  onClose: () => void;
-  onHasContentChange?: (videoId: string, hasContent: boolean) => void;
-}) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const noteEditorRef = useRef<NoteEditorHandle>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  const flushAndClose = useCallback(async () => {
-    await noteEditorRef.current?.flushAndSave();
-    onCloseRef.current();
-  }, []);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") flushAndClose();
-    }
-    document.addEventListener("keydown", handleKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = "";
-    };
-  }, [flushAndClose]);
-
-  return (
-    <div
-      ref={overlayRef}
-      onClick={(e) => { if (e.target === overlayRef.current) flushAndClose(); }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-    >
-      <div
-        className="w-full max-w-[800px] rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-zinc-800">
-          <div className="min-w-0 flex-1">
-            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-              Notes
-            </span>
-            <h2 className="text-sm font-medium text-gray-900 dark:text-white truncate mt-0.5">
-              {video.title}
-            </h2>
-          </div>
-          <button
-            onClick={flushAndClose}
-            className="shrink-0 ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-            aria-label="Close notes"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Editor */}
-        <div className="p-5">
-          <NoteEditor ref={noteEditorRef} videoId={video.id} onHasContentChange={onHasContentChange} />
-        </div>
-
-        {/* Save & Close footer */}
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-zinc-800">
-          <button
-            onClick={flushAndClose}
-            className="rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-5 py-2 text-sm font-semibold text-white transition-colors"
-          >
-            Save &amp; Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Video Player Modal ─────────────────────────────────────────────────────
-
-function VideoPlayerModal({
-  video,
-  onClose,
-  onMarkCompleted,
-  onOpenNotes,
-}: {
-  video: Video;
-  onClose: () => void;
-  onMarkCompleted: (videoId: string) => void;
-  onOpenNotes: (video: Video) => void;
-}) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCloseRef.current();
-    }
-    document.addEventListener("keydown", handleKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = "";
-    };
-  }, []);
-
-  return (
-    <div
-      ref={overlayRef}
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-    >
-      <div
-        className="w-full max-w-4xl rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-zinc-800">
-          <div className="min-w-0 flex-1">
-            <span className="text-xs font-medium text-blue-600 dark:text-blue-400 shrink-0">Now Playing</span>
-            <h2 className="text-sm font-medium text-gray-900 dark:text-white truncate mt-0.5">{video.title}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-            aria-label="Close player"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Video */}
-        <div className="bg-black">
-          <div className="aspect-video max-h-[60vh] mx-auto">
-            <iframe
-              src={`https://www.youtube.com/embed/${video.youtubeVideoId}?autoplay=1&rel=0`}
-              title={video.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full"
-            />
-          </div>
-        </div>
-
-        {/* Bottom bar: quick actions */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-zinc-800">
-          <button
-            onClick={() => onOpenNotes(video)}
-            className="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-zinc-700 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-            </svg>
-            Notes
-          </button>
-          {video.status !== "completed" ? (
-            <button
-              onClick={() => { onMarkCompleted(video.id); onClose(); }}
-              className="flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 active:bg-green-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-              Mark complete
-            </button>
-          ) : (
-            <span className="flex items-center gap-1 text-xs text-green-500">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-              Completed
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── AI Content Modal ───────────────────────────────────────────────────────
-
-function AIContentModal({
-  video,
-  content,
-  onClose,
-}: {
-  video: Video;
-  content: { summary: string; quiz: QuizPayload };
-  onClose: () => void;
-}) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const [revealedAnswers, setRevealedAnswers] = useState<Record<number, boolean>>({});
-
-  const toggleAnswer = useCallback((idx: number) => {
-    setRevealedAnswers((prev) => ({ ...prev, [idx]: !prev[idx] }));
-  }, []);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      ref={overlayRef}
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-    >
-      <div
-        className="w-full max-w-[800px] max-h-[85vh] flex flex-col rounded-2xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-zinc-800 shrink-0">
-          <div className="min-w-0 flex-1">
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-              AI Study Notes
-            </span>
-            <h2 className="text-sm font-medium text-gray-900 dark:text-white truncate mt-0.5">
-              {video.title}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-            aria-label="Close study notes"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {/* Summary */}
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-              Summary
-            </h3>
-            <div className="rounded-xl bg-gray-50 dark:bg-zinc-800/50 p-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed border border-gray-100 dark:border-zinc-800">
-              {content.summary}
-            </div>
-          </div>
-
-          {/* Quiz */}
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-              Quiz ({content.quiz.questions.length} questions)
-            </h3>
-            <div className="space-y-4">
-              {content.quiz.questions.map((q, i) => {
-                const isRevealed = !!revealedAnswers[i];
-                return (
-                  <div
-                    key={i}
-                    className="rounded-xl bg-gray-50 dark:bg-zinc-800/50 p-4 border border-gray-100 dark:border-zinc-800"
-                  >
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                      {i + 1}. {q.question}
-                    </p>
-                    <div className="space-y-2">
-                      {q.options.map((opt, oi) => {
-                        const isCorrect = oi === q.answer;
-                        let optionStyle = "border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-gray-400";
-                        if (isRevealed && isCorrect) {
-                          optionStyle = "border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 font-medium";
-                        } else if (isRevealed && !isCorrect) {
-                          optionStyle = "border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400";
-                        }
-                        return (
-                          <div
-                            key={oi}
-                            className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors ${optionStyle}`}
-                          >
-                            <span className="flex items-center justify-center w-5 h-5 shrink-0 rounded-full bg-gray-200 dark:bg-zinc-700 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
-                              {String.fromCharCode(65 + oi)}
-                            </span>
-                            <span>{opt}</span>
-                            {isRevealed && isCorrect && (
-                              <svg className="w-4 h-4 ml-auto shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                              </svg>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <button
-                      onClick={() => toggleAnswer(i)}
-                      className={`mt-3 text-xs font-medium transition-colors ${
-                        isRevealed
-                          ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                          : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
-                      }`}
-                    >
-                      {isRevealed ? "Hide answers" : "Show answer"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end px-5 py-4 border-t border-gray-200 dark:border-zinc-800 shrink-0">
-          <button
-            onClick={onClose}
-            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-5 py-2 text-sm font-semibold text-white transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { useRouter } from "next/navigation";
+import type { Video, Course, StudySummary, QuizPayload, AiGenerationState } from "./types";
+import StatusBadge from "./StatusBadge";
+import NotesModal from "./NotesModal";
+import VideoPlayerModal from "./VideoPlayerModal";
+import AIContentModal from "./AIContentModal";
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
@@ -449,10 +15,13 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 15;
 
 export default function CourseContent({ course, playVideoId }: { course: Course; playVideoId?: string }) {
+  const router = useRouter();
   const [playingVideo, setPlayingVideo] = useState<Video | null>(null);
   const [noteModalVideoId, setNoteModalVideoId] = useState<string | null>(null);
   const [aiModalVideo, setAiModalVideo] = useState<Video | null>(null);
-  const [aiContentData, setAiContentData] = useState<{ summary: string; quiz: QuizPayload } | null>(null);
+  const [aiContentData, setAiContentData] = useState<{ summary: StudySummary; quiz: QuizPayload } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [videosWithNotes, setVideosWithNotes] = useState<Record<string, boolean>>({});
   const [aiGenStates, setAiGenStates] = useState<Record<string, AiGenerationState>>({});
   const pollTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
@@ -463,7 +32,6 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
   >({});
 
   // On mount: fetch existing notes and AI content status for all videos
-  // so the Notes/AI button state is correct even without user interaction.
   useEffect(() => {
     fetch(`/api/courses/${course.id}/content-status`)
       .then((res) => res.json())
@@ -480,7 +48,6 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
           for (const [videoId, status] of Object.entries(data)) {
             if (status.hasNotes) notesMap[videoId] = true;
             if (status.aiStatus === "ready") {
-              // No summary/quiz here — they're lazily fetched on modal open
               aiMap[videoId] = { status: "ready" };
             } else if (status.aiStatus === "pending") {
               aiMap[videoId] = { status: "pending" };
@@ -493,9 +60,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
           setAiGenStates(aiMap);
         }
       )
-      .catch(() => {
-        // Silently fail — button states just stay at default (idle)
-      });
+      .catch(() => {});
   }, [course.id]);
 
   // Cleanup all poll timers on unmount
@@ -515,7 +80,9 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status, lastWatchedSeconds }),
-    }).catch(() => {});
+    })
+      .then(() => window.dispatchEvent(new CustomEvent("refresh-stats")))
+      .catch(() => {});
   }
 
   function handlePlayVideo(video: Video) {
@@ -557,7 +124,6 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
   // ─── AI Content Generation ───────────────────────────────────
 
   async function triggerGeneration(video: Video) {
-    // Don't start if already generating or pending
     const current = aiGenStates[video.id];
     if (current?.status === "generating" || current?.status === "pending") return;
 
@@ -570,7 +136,6 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
         body: JSON.stringify({ youtubeVideoId: video.youtubeVideoId, courseId: course.id }),
       });
       const data = await res.json();
-
       handleGenerationResponse(video, data);
     } catch (err) {
       setAiGenStates((prev) => ({
@@ -580,9 +145,8 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
     }
   }
 
-  function handleGenerationResponse(video: Video, data: { status: string; summary?: string; quiz?: QuizPayload; reason?: string }) {
+  function handleGenerationResponse(video: Video, data: { status: string; summary?: StudySummary; quiz?: QuizPayload; reason?: string }) {
     if (data.status === "ready") {
-      // Stop polling if active
       stopPolling(video.id);
       setAiGenStates((prev) => ({
         ...prev,
@@ -603,9 +167,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
   }
 
   function startPolling(video: Video) {
-    // Clear any existing poll
     stopPolling(video.id);
-
     pollAttemptsRef.current[video.id] = 0;
 
     const timer = setInterval(async () => {
@@ -651,20 +213,26 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
     const state = aiGenStates[video.id];
     if (state?.status !== "ready") return;
 
-    // Use cached content if available (e.g., fresh from POST response)
     if (state.summary && state.quiz) {
       setAiContentData({ summary: state.summary, quiz: state.quiz });
       setAiModalVideo(video);
       return;
     }
 
-    // Otherwise fetch lazily
     setAiContentLoading(true);
     try {
       const res = await fetch(`/api/videos/${video.id}/ai-content`);
       if (!res.ok) throw new Error("Failed to load AI content");
       const data = await res.json();
-      if (data.summary && data.quiz) {
+      if (data.needsRegeneration) {
+        // AIContent row is missing or stale — reset to idle so the user
+        // sees the Generate button and can trigger a fresh Gemini call.
+        setAiGenStates((prev) => {
+          const next = { ...prev };
+          delete next[video.id];
+          return next;
+        });
+      } else if (data.summary && data.quiz) {
         setAiContentData({ summary: data.summary, quiz: data.quiz });
         setAiModalVideo(video);
       }
@@ -680,37 +248,123 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
     setAiContentData(null);
   }
 
+  // ─── Delete Course ────────────────────────────────────────
+
+  async function handleDeleteCourse() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/courses/${course.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        router.push("/dashboard");
+      } else {
+        setDeleting(false);
+        setShowDeleteConfirm(false);
+      }
+    } catch {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }
+
   const resolvedVideos = course.videos.map(resolveVideo);
   const completedCount = resolvedVideos.filter((v) => v.status === "completed").length;
   const activeVideo = playingVideo ? resolveVideo(playingVideo) : null;
-
   const noteModalVideo = resolvedVideos.find((v) => v.id === noteModalVideoId) ?? null;
 
-  // On mount: if ?play=VIDEO_ID is provided (from dashboard "Continue Learning" /
-  // "Start Course" buttons), auto-play that specific video. No fallback to
-  // first in_progress — only explicit video IDs trigger auto-play.
+  // On mount: if ?play=VIDEO_ID is provided, auto-play that specific video
   useEffect(() => {
     if (!playVideoId) return;
     const target = course.videos.find((v) => v.id === playVideoId && v.isAvailable);
     if (target) {
       handlePlayVideo(target);
     }
-    // We intentionally only run this on mount — playVideoId never changes after initial render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Back link */}
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mb-6"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-        </svg>
-        Back to Dashboard
-      </Link>
+      {/* Top bar: back link + delete button */}
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+          </svg>
+          Back to Dashboard
+        </Link>
+
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+          </svg>
+          Delete course
+        </button>
+      </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-6"
+          onClick={() => !deleting && setShowDeleteConfirm(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 shadow-[0_20px_80px_rgba(0,0,0,.45)]"
+          >
+            <div className="p-7">
+              <div className="flex gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-500/15">
+                  <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3h.008M10.29 3.86 1.82 18a2 2 0 001.73 3h16.9a2 2 0 001.73-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-white">Delete course?</h2>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">
+                    This will permanently delete{" "}
+                    <span className="font-semibold text-white">{course.title}</span> and all{" "}
+                    <span className="font-semibold text-white">{course._count.videos} videos</span> with their notes.
+                  </p>
+                  <p className="mt-2 text-sm text-red-400">This action cannot be undone.</p>
+                </div>
+              </div>
+              <div className="mt-8 flex justify-end gap-3">
+                <button
+                  disabled={deleting}
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="h-11 rounded-xl border border-zinc-700 px-5 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={deleting}
+                  onClick={handleDeleteCourse}
+                  className="flex h-11 min-w-[120px] items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-semibold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {deleting ? (
+                    <>
+                      <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                        <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.37 0 0 5.37 0 12h4z" />
+                      </svg>
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Course"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Course header */}
       <div className="flex flex-col sm:flex-row gap-6 mb-8">
@@ -750,7 +404,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
         </div>
       </div>
 
-      {/* ── Video Player Modal ───────────────────────────────────────── */}
+      {/* Video Player Modal */}
       {activeVideo && activeVideo.isAvailable && (
         <VideoPlayerModal
           video={activeVideo}
@@ -761,9 +415,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
       )}
 
       {/* Video list */}
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Videos
-      </h2>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Videos</h2>
       <div className="space-y-2">
         {resolvedVideos.map((video) => {
           const isComplete = video.status === "completed";
@@ -771,7 +423,6 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
           const isActive = activeVideo?.id === video.id;
           const hasNotes = !!videosWithNotes[video.id];
           const aiState = aiGenStates[video.id];
-          const aiIsIdle = !aiState || aiState.status === "idle";
           const aiIsGenerating = aiState?.status === "generating" || aiState?.status === "pending";
           const aiIsReady = aiState?.status === "ready";
           const aiIsFailed = aiState?.status === "failed";
@@ -798,7 +449,6 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
                 } ${!video.isAvailable ? "opacity-60 cursor-not-allowed" : ""}`}
               >
                 {isComplete && <div className="absolute inset-0 pointer-events-none bg-green-500/5" />}
-
                 {accentColor && <div className={`absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full ${accentColor}`} />}
 
                 <button
@@ -821,9 +471,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {video.title}
-                  </h3>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{video.title}</h3>
                   <p className={`text-xs mt-0.5 capitalize transition-colors duration-150 ${statusTextColor}`}>
                     {video.status === "in_progress" ? "In Progress" : video.status.replace("_", " ")}
                     {video.durationSeconds &&
@@ -860,10 +508,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
                     </div>
                   ) : aiIsReady ? (
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenAiContent(video);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); handleOpenAiContent(video); }}
                       className="shrink-0 rounded-lg border border-emerald-500/60 dark:border-emerald-400/50 bg-emerald-500/10 dark:bg-emerald-400/10 p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 dark:hover:bg-emerald-400/20 transition-colors"
                       aria-label="View study notes"
                     >
@@ -873,10 +518,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
                     </button>
                   ) : (
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        triggerGeneration(video);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); triggerGeneration(video); }}
                       disabled={aiIsFailed}
                       className={`shrink-0 rounded-lg border p-2 transition-all ${
                         aiIsFailed
@@ -893,12 +535,9 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
                   )
                 )}
 
-                {/* Notes icon button — right of AI button */}
+                {/* Notes icon button */}
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenNotes(video);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); handleOpenNotes(video); }}
                   className={`shrink-0 rounded-lg border p-2 transition-all ${
                     hasNotes
                       ? "border-blue-500/60 dark:border-blue-400/50 bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400"

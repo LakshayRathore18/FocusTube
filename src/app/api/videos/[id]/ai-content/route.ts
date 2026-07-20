@@ -33,29 +33,21 @@ export async function GET(
     return NextResponse.json({ error: "Video not found" }, { status: 404 });
   }
 
-  // Check that the user has unlocked AI content for this video
-  if (!video.aiContentUnlockedAt) {
-    return NextResponse.json(
-      { error: "AI content not unlocked for this video" },
-      { status: 404 }
-    );
-  }
-
   // Fetch the shared AIContent row
   const aiContent = await db.aIContent.findUnique({
     where: { youtubeVideoId: video.youtubeVideoId },
     select: { summary: true, quiz: true, status: true },
   });
 
-  if (!aiContent || aiContent.status !== "ready") {
-    return NextResponse.json(
-      { error: "AI content not ready yet" },
-      { status: 404 }
-    );
+  // If the user has an unlock stamp but the AIContent row is missing or
+  // malformed (e.g. deleted by cleanup script after schema change), signal
+  // that the frontend should offer regeneration instead of showing an error.
+  if (!video.aiContentUnlockedAt || !aiContent || aiContent.status !== "ready") {
+    return NextResponse.json({ needsRegeneration: true });
   }
 
   return NextResponse.json({
-    summary: aiContent.summary,
+    summary: aiContent.summary ? JSON.parse(aiContent.summary) : null,
     quiz: aiContent.quiz,
   });
 }

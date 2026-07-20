@@ -10,7 +10,16 @@ and never update this issues.md file
 
 ## Open Issues
 
-In src/app/api/ai/content/route.ts, before the transcript is passed to Gemini (src/lib/ai/gemini.ts), truncate it to the first 20,000 characters as a stopgap against Vercel Hobby's 60s function timeout on very long videos. Add a comment marking this as a temporary mitigation, noting the proper fix (streaming response or background job) is out of scope for this change. Don't touch any other part of the generation flow, retry logic, or error handling.
+npx ts-node scripts/cleanup-ai-content.ts
+TypeError: Unknown file extension ".ts" for C:\CODING\WebDev\focustube\scripts\cleanup-ai-content.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:219:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:245:36)
+    at defaultLoad (node:internal/modules/esm/load:120:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:483:32)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:115:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+(base) PS C:\CODING\WebDev\focustube> 
 
 ---
 

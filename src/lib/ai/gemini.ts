@@ -21,10 +21,15 @@ const QuizQuestionSchema = z.object({
   answer: z.number().int().min(0).max(3),
 });
 
+const StudySummarySchema = z.object({
+  hook: z.string().min(1),
+  keyPoints: z.array(z.string().min(1)).min(1),
+});
+
 const NotesSchema = z.object({
-  summary: z.string().min(1),
+  summary: StudySummarySchema,
   quiz: z.object({
-    questions: z.array(QuizQuestionSchema).length(5),
+    questions: z.array(QuizQuestionSchema).min(1).max(10),
   }),
 });
 
@@ -38,7 +43,10 @@ function buildPrompt(transcript: string) {
 Return ONLY valid JSON with NO markdown formatting, NO code fences, and NO additional text before or after. The JSON must match this exact schema:
 
 {
-  "summary": "A concise educational summary of the transcript covering the key concepts",
+  "summary": {
+    "hook": "A single captivating opening sentence that summarizes the core insight of the video",
+    "keyPoints": ["Key point 1", "Key point 2", "Key point 3"]
+  },
   "quiz": {
     "questions": [
       {
@@ -51,8 +59,9 @@ Return ONLY valid JSON with NO markdown formatting, NO code fences, and NO addit
 }
 
 Requirements:
-- "summary": a single concise paragraph covering the key concepts from the transcript
-- "questions": exactly 5 comprehension quiz questions
+- "summary.hook": a single captivating sentence capturing the video's core insight
+- "summary.keyPoints": an array of 3-6 distinct key points from the transcript
+- "questions": generate 5-10 comprehension quiz questions (more for longer transcripts)
 - Each question must have exactly 4 options (array of 4 strings)
 - "answer" must be the zero-based index (0, 1, 2, or 3) of the correct option
 - Focus on concepts, not wording. Avoid trivial questions. Avoid ambiguity.

@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         await unlockForCurrentUser();
         return NextResponse.json({
           status: "ready",
-          summary: existing.summary,
+          summary: existing.summary ? JSON.parse(existing.summary) : null,
           quiz: existing.quiz,
         });
 
@@ -222,12 +222,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Success — save to AIContent and stamp the user's Video row
+  // summary is JSON-stringified before storing in the @db.Text column
   await db.aIContent.update({
     where: { id: claim.rowId },
     data: {
       status: "ready",
       transcript: transcriptResult.transcript,
-      summary: notesResult.summary,
+      summary: JSON.stringify(notesResult.summary),
       quiz: notesResult.quiz,
       attempts: { increment: 1 },
       lastAttemptedAt: now,

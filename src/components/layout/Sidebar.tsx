@@ -75,16 +75,23 @@ export default function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  // Fetch weekly stats
+  // Fetch weekly stats on mount and whenever a stats refresh is requested
   useEffect(() => {
-    fetch("/api/stats/weekly")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data.videosCompletedThisWeek === "number") {
-          setWeeklyStats(data);
-        }
-      })
-      .catch(() => {});
+    function fetchStats() {
+      fetch("/api/stats/weekly")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data.videosCompletedThisWeek === "number") {
+            setWeeklyStats(data);
+          }
+        })
+        .catch(() => {});
+    }
+
+    fetchStats();
+
+    window.addEventListener("refresh-stats", fetchStats);
+    return () => window.removeEventListener("refresh-stats", fetchStats);
   }, []);
 
   const isActive = useCallback((href: string) => {
@@ -175,7 +182,7 @@ export default function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }
               <div className="flex items-center gap-3">
                 <CircularProgress pct={weeklyPct} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Weekly Progress</p>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Progress</p>
                   <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     <span>{weeklyStats.totalVideosCompleted}/{weeklyStats.totalVideosCount} videos done</span>
