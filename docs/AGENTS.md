@@ -14,13 +14,20 @@ This is **not** the Next.js version you may know from training data. This projec
 <!-- END:nextjs-agent-rules -->
 
 ---
+<!-- Important guideline -->
+Database Safety — Non-Negotiable
+NEVER run any command that resets, wipes, or drops the database — this includes prisma migrate dev --reset, prisma db push --force-reset, DROP TABLE, TRUNCATE, or any migration path that Prisma reports as requiring data loss to apply.
+If a schema change cannot be applied without data loss (Prisma will say so explicitly), stop and explain the situation instead of proceeding. State exactly what data would be lost and why, then wait for explicit confirmation before running anything destructive. Do not decide this trade-off unilaterally.
+Prefer non-destructive migration paths always: default values for new required columns, backfill scripts for existing rows, or making a new column nullable first and tightening it later — instead of a reset.
+If you are ever unsure whether a command is destructive, treat it as destructive and ask first.
+
 
 ## 1. Project Overview & Current State
 
 FocusTube is a video-based study platform where users import YouTube playlists as courses, take notes, and interact with AI-generated quizzes and transcripts.
 
 - **Stack**: Next.js 16 (Turbopack), Tailwind v4 (CSS-native config), Prisma 7, PostgreSQL (Neon), NextAuth v5 (Google OAuth, JWT session).
-- **Status**: Core features functional. Playlist import (YouTube Data API v3), course detail page with embedded YouTube player, and dashboard are implemented. Auth & route protection are complete. Next up: notes, progress tracking, and AI content generation.
+- **Status**: Core features functional. Playlist import (YouTube Data API v3), course detail page with embedded YouTube player, dashboard, notes (Tiptap editor with autosave), and AI-generated study notes + quizzes are implemented. Auth & route protection are complete.
 - **Current Task List**: Look at [docs/todo.md](file:///c:/CODING/WebDev/focustube/docs/todo.md) for what needs to be built next.
 
 ---
@@ -34,16 +41,18 @@ FocusTube is a video-based study platform where users import YouTube playlists a
 - [src/lib/db.ts](file:///c:/CODING/WebDev/focustube/src/lib/db.ts) — Prisma Client database singleton.
 - [src/lib/youtube.ts](file:///c:/CODING/WebDev/focustube/src/lib/youtube.ts) — YouTube Data API v3 helpers (playlist extraction, fetch playlist data + items).
 - [src/lib/transcript.ts](file:///c:/CODING/WebDev/focustube/src/lib/transcript.ts) — YouTube transcript fetcher (wraps `youtube-transcript-plus`).
-- [src/app/test-transcript/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/test-transcript/page.tsx) — TEMP QA page: form to test transcript fetching against real YouTube videos.
-- [src/app/api/test-transcript/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/test-transcript/route.ts) — TEMP API route consumed by the QA page.
+- [src/lib/ai/provider.ts](file:///c:/CODING/WebDev/focustube/src/lib/ai/provider.ts) — AIProvider interface with `GenerateNotesResult` and `QuizPayload` types.
+- [src/lib/ai/gemini.ts](file:///c:/CODING/WebDev/focustube/src/lib/ai/gemini.ts) — Gemini provider implementing AIProvider (model: `gemini-3.1-flash-lite`).
 - [src/components/layout/Navbar.tsx](file:///c:/CODING/WebDev/focustube/src/components/layout/Navbar.tsx) & [layout/AuthButton.tsx](file:///c:/CODING/WebDev/focustube/src/components/layout/AuthButton.tsx) — Auth navbar controls.
 - [src/components/layout/Sidebar.tsx](file:///c:/CODING/WebDev/focustube/src/components/layout/Sidebar.tsx) — Collapsible sidebar with nav links, weekly progress, and user info.
 - [src/components/layout/LayoutShell.tsx](file:///c:/CODING/WebDev/focustube/src/components/layout/LayoutShell.tsx) — Shell orchestrating Navbar + collapsible Sidebar + main content.
-- [src/components/course/CourseContent.tsx](file:///c:/CODING/WebDev/focustube/src/components/course/CourseContent.tsx) — Client component: video list with status indicator rings, left-edge accent bars, hover-expand Play buttons, and YouTube modal popup player.
-- [src/app/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/page.tsx) — Landing page (redirects authenticated users to /dashboard).
-- [src/app/dashboard/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/dashboard/page.tsx) — Dashboard: list courses, import new playlist.
+- [src/components/course/CourseContent.tsx](file:///c:/CODING/WebDev/focustube/src/components/course/CourseContent.tsx) — Client component: video list with status rings, player/notes/AI-generation buttons, YouTube modal player (no auto-play on mount — only on explicit click), notes modal, and AI study notes modal (summary + quiz with answer toggle).
+- [src/app/api/ai/content/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/ai/content/route.ts) — POST endpoint: AI content generation with shared AIContent (keyed by youtubeVideoId). On ready, stamps the user's Video row with aiContentUnlockedAt. Also accepts courseId for precise Video row pinning. DB-level concurrency (P2002 race handling) and polling support. Truncates transcript to 20,000 chars before Gemini call as Vercel Hobby 60s timeout mitigation.
+- [src/app/api/courses/[id]/content-status/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/courses/[id]/content-status/route.ts) — GET endpoint: returns per-video hasNotes and aiStatus ("ready" | "none") by reading Video.aiContentUnlockedAt + global AIContent. Used by CourseContent on mount to pre-populate button states.
+- [src/app/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/page.tsx) — Landing page (redirects authenticated users to /dashboard via middleware + server component).
+- [src/app/dashboard/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/dashboard/page.tsx) — Dashboard: list courses, import new playlist. Import error handling now reads response text on JSON parse failure to show real server errors.
 - [src/app/courses/[id]/page.tsx](file:///c:/CODING/WebDev/focustube/src/app/courses/[id]/page.tsx) — Course detail page (server fetcher) → delegates to CourseContent client component.
-- [src/app/api/courses/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/courses/route.ts) — POST (import playlist) and GET (list courses).
+- [src/app/api/courses/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/courses/route.ts) — POST (import playlist) and GET (list courses). POST includes user upsert for stale JWTs and try-catch around transaction for proper JSON error responses.
 - [src/app/api/courses/[id]/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/courses/[id]/route.ts) — GET single course with videos (ownership check).
 - [src/app/api/videos/[id]/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/videos/[id]/route.ts) — PATCH video status (in_progress / completed) with ownership check.
 - [src/app/api/videos/[id]/notes/route.ts](file:///c:/CODING/WebDev/focustube/src/app/api/videos/[id]/notes/route.ts) — GET/PUT notes per video with ownership check.
@@ -62,13 +71,29 @@ FocusTube is a video-based study platform where users import YouTube playlists a
 Do not memorize fields here. Read [prisma/schema.prisma](file:///c:/CODING/WebDev/focustube/prisma/schema.prisma) directly.
 - `User` & `Account`: Auth and Google account details.
 - `Course`: Imported YouTube playlist, owned by `User`.
-- `Video`: Playlist videos. Watch state (`status`, `lastWatchedSeconds`) is stored here.
-- `AIContent`: Shared globally across all users (keyed by `@unique youtubeVideoId`). Contains transcript, summary, and quiz JSON.
+- `Video`: Playlist videos. Watch state (`status`, `lastWatchedSeconds`) + `aiContentUnlockedAt DateTime?` (per-user AI unlock stamp) stored here.
+- `AIContent`: Shared globally across all users (keyed by `@unique youtubeVideoId`). Contains transcript, summary, and quiz JSON. Per-user unlock tracked via `Video.aiContentUnlockedAt`.
 - `Note`: User-written text notes linked to a `Video`.
 
 ---
 
-## 4. Critical Conventions & Gotchas
+## 4. Environment Variables
+
+The following environment variables are required (set in `.env.local`):
+
+| Variable | Purpose | Source |
+|---|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (Neon) | Neon dashboard |
+| `NEXTAUTH_URL` | App base URL (`http://localhost:3000` for dev) | — |
+| `NEXTAUTH_SECRET` | JWT encryption key | `openssl rand -base64 32` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID | Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Google Cloud Console |
+| `YOUTUBE_API_KEY` | YouTube Data API v3 key | Google Cloud Console |
+| `GEMINI_API_KEY` | Google Gemini API key (model: `gemini-3.1-flash-lite`, set in `src/lib/ai/gemini.ts`) | Google AI Studio |
+
+---
+
+## 5. Critical Conventions & Gotchas
 
 ### DB & Prisma 7
 - **Importing the DB Client**: Always use `import { db } from "@/lib/db"`. Never instantiate `new PrismaClient()` elsewhere.
@@ -77,13 +102,15 @@ Do not memorize fields here. Read [prisma/schema.prisma](file:///c:/CODING/WebDe
 
 ### Next.js 15/16 Routing & APIs
 - **Awaiting Params**: Route params (e.g. `{ params }: { params: Promise<{ courseId: string }> }`) must be awaited in Next.js 15+: `const { courseId } = await params;`.
-- **Route Protection**: Managed via `src/proxy.ts` using NextAuth's `auth()` wrapper (default export pattern).
-- **Notes Autosave**: Notes use debounced trailing-edge autosave (1.5s) via `PUT /api/videos/[id]/notes`.
+- **Route Protection**: Managed via `src/proxy.ts` using NextAuth's `auth()` wrapper (default export pattern). Matcher includes `/` — signed-in users visiting the landing page get redirected to `/dashboard` at the middleware level.
+- **Notes Autosave**: Notes use debounced trailing-edge autosave (1.5s) via `PUT /api/videos/[id]/notes`. On successful save, `onHasContentChange(videoId, true)` is called to instantly update the parent button state (no refresh needed).
 
 ### Performance Optimizations
 - **Parallel DB Queries**: Course page (`src/app/courses/[id]/page.tsx`) and API (`src/app/api/courses/[id]/route.ts`) use `Promise.all` to run `db.course.findUnique` and `db.video.count` in parallel instead of sequential `include`, cutting application-code latency by ~40%.
 - **Dashboard enrichment**: `GET /api/courses` uses `Promise.all` with a `groupBy` query to fetch per-course completed video counts in parallel with the main course query, avoiding an n+1 pattern.
 - **SSL Connection String**: `src/lib/db.ts` auto-appends `sslmode=verify-full` to the Postgres connection string (or replaces any existing weak sslmode) to suppress the pg-connection-string deprecation warning for Neon deployments.
+- **Content-status batch endpoint**: `GET /api/courses/[id]/content-status` returns notes + AI status for all videos in a single request using two parallel batched Prisma queries (no N+1).
+- **Shared AIContent + per-user Video unlock**: AI content is generated once per video globally (saves API costs). Per-user green button state tracked via `Video.aiContentUnlockedAt` instead of separate AIContent rows.
 
 ### Note Authorization Pattern
 - Never trust request-supplied entity IDs directly without ownership verification. Ensure the entity ownership resolves back to the session user:
@@ -92,6 +119,14 @@ Do not memorize fields here. Read [prisma/schema.prisma](file:///c:/CODING/WebDe
     where: { id: videoId, course: { userId: session.user.id } }
   });
   ```
+
+### Stale JWT Recovery (DB Reset)
+- If the database is reset, the user's JWT may reference a `userId` that no longer exists as a `User` row.
+- `POST /api/courses` handles this by upserting the user record from session data before creating the course.
+
+### No Auto-Play on Course Page
+- `CourseContent` no longer auto-plays a video on mount (removed the `useEffect` that found the first `in_progress` video).
+- The video player modal only opens when the user explicitly clicks a video row.
 
 ---
 

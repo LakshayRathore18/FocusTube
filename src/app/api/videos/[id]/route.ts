@@ -38,6 +38,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Video not found" }, { status: 404 });
   }
 
+  // Validate status field if present
+  const VALID_STATUSES = ["not_started", "in_progress", "completed"] as const;
+  if (body.status !== undefined && !VALID_STATUSES.includes(body.status as typeof VALID_STATUSES[number])) {
+    return NextResponse.json(
+      { error: `Invalid status "${body.status}". Must be one of: ${VALID_STATUSES.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
   // Build update payload from allowed fields
   const allowedFields = ["status", "lastWatchedSeconds"] as const;
   const updateData: Record<string, unknown> = {};

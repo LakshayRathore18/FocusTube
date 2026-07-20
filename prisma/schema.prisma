@@ -82,6 +82,7 @@ model Video {
   status             VideoStatus @default(not_started)
   lastWatchedSeconds Int?        // Resume playback position
   completedAt        DateTime?   // Set when status transitions to completed
+  aiContentUnlockedAt DateTime?  // Set when the user first generates (or unlocks existing) AI content for this video
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
@@ -101,14 +102,11 @@ enum VideoStatus {
 }
 
 // AI-generated content — SHARED across all users, keyed by youtubeVideoId.
-// Design: if two users import the same YouTube video, they share one AIContent
-// row. Only the first request ever triggers a real AI call.
-// The unique constraint on youtubeVideoId is the dedup lock:
-//   - First insert → wins, generates content
-//   - Concurrent insert → unique violation → falls back to reading existing row
+// Per-user unlock tracking is done via Video.aiContentUnlockedAt instead.
+// This preserves the cost savings of a single AI generation per video.
 model AIContent {
   id             String          @id @default(cuid())
-  youtubeVideoId String          @unique // The dedup key
+  youtubeVideoId String          @unique
   transcript     String?         @db.Text
   summary        String?         @db.Text
   quiz           Json?           // { questions: [{ question, options: string[], answer: number }] }

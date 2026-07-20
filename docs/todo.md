@@ -14,16 +14,16 @@
 | Styling | Tailwind CSS v4 | PostCSS via `@tailwindcss/postcss` |
 | UI Components | Tiptap (rich text editor) + lucide-react (icons) | Installed via npm |
 | Database | PostgreSQL — Neon (free tier) | Serverless Postgres |
-| ORM | Prisma 7.8.0 | Schema in `prisma/schema.prisma`, connection URL in `prisma.config.ts` (breaking change from v6) |
+| ORM | Prisma 7.8.0 | Schema in `prisma/schema.prisma`, connection URL in `prisma.config.ts` |
 | Auth | NextAuth / Auth.js v5 | Google OAuth only, JWT sessions (no DB sessions) |
-| AI | Google Gemini API | Via swappable provider interface in `src/lib/ai/` |
-| YouTube | YouTube Data API v3 | Playlist + PlaylistItems endpoints |
+| AI | Google Gemini API (`gemini-3.1-flash-lite`, via `GEMINI_MODEL` env var) | Swappable provider interface in `src/lib/ai/` |
+| YouTube | YouTube Data API v3 + `youtube-transcript-plus` | Playlist import + transcript fetching |
 | Deploy | Vercel Hobby (free tier) | 60s function timeout |
-| Async Jobs | None yet — synchronous only | Add Upstash QStash ONLY if timeout is hit |
-| PG Adapter | `@prisma/adapter-pg` + `pg` | Required by Prisma 7 — driver adapters are now mandatory |
+| Async Jobs | None — synchronous only | No cron dependency for the primary AI path (Hobby cron = once/day max, unsuitable for request-triggered work) |
+| PG Adapter | `@prisma/adapter-pg` + `pg` | Required by Prisma 7 |
 | Package Manager | npm | |
 
-> **Free-tier constraint**: No Redis, no queues, no websockets, no microservices, no Railway/AWS/GCP/Azure unless there's a concrete need.
+> **Concurrency design (interview-relevant):** `AIContent` is deduped globally via a unique constraint on `youtubeVideoId` — not per-user. When two requests race to generate notes for the same video, Postgres atomically allows only one `INSERT` to succeed; the loser catches the unique-violation, reads the winner's row instead, and the frontend polls via idempotent re-POSTs. No manual locking or Redis needed for correctness — the DB constraint *is* the lock.
 
 ---
 
@@ -89,33 +89,31 @@
   - [x] Save status indicator: idle → saving → saved / error
   - [x] Ownership verified via Video → Course → User chain
 
-### ✅ Completed
 
-- [x] **Dashboard enhancements**: search filter, progress bars on course cards, Continue Watching section(#)
+### 🔄 In Progress — Step 6: AI Notes + Quiz (current focus)
 
-### 🔄 In Progress
+- [ ] `src/lib/ai/provider.ts` — swappable `AIProvider` interface
+- [ ] `src/lib/ai/gemini.ts` — move existing Gemini logic here, implementing the interface (retire flat `src/lib/gemini.ts` once migrated)
+- [ ] `POST /api/ai/content` — real route (replaces temp `/api/test-generate-notes`):
+  - [ ] Try-insert pending `AIContent` row keyed by `youtubeVideoId` (global dedup, not per-user)
+  - [ ] Winner: fetch transcript → call Gemini → update row to `ready`/`failed` (`attempts`, `lastAttemptedAt` tracked on failure)
+  - [ ] Loser (unique violation / P2002): read existing row, return as-is — no retry, no wait
+  - [ ] If row exists with `status: "failed"` and `attempts < 3`: retry inline on next request
+  - [ ] If `attempts >= 3`: return permanent failure, no further retries
+- [ ] Frontend: explicit "Generate Notes" button per video in `CourseContent.tsx` (icon button, same pattern as existing Notes button)
+- [ ] Frontend polling: re-POST the same idempotent endpoint every ~2s while `status: "pending"`, capped at ~30s before showing "still processing" — no separate GET/status endpoint needed
+- [ ] Display summary + quiz in a modal (reuse existing modal styling)
+- [ ] Delete temp files once confirmed working: `src/app/test-transcript/page.tsx`, `/api/test-transcript`, `/api/test-gemini`, `/api/test-generate-notes`
+- [ ] Manually verify the race: trigger the same video from two tabs at once, confirm only one Gemini call fires (check logs/attempts)
 
-- [ ] **Step 7 — AI: summary + quiz (synchronous)**
-  - [x] YouTube transcript fetching utility (`src/lib/transcript.ts` + test route)
-  - [ ] Swappable AI provider interface `src/lib/ai/provider.ts`
-  - [ ] Gemini implementation `src/lib/ai/gemini.ts`
-  - [ ] `POST /api/ai/content` — check AIContent → insert pending → generate → save ready
-  - [ ] Unique constraint on `youtubeVideoId` handles race (first insert wins, second reads)
-  - [ ] Return summary + quiz JSON to client
+### 🔜 Later / Optional (nice-to-have, not required for a working product)
 
-- [ ] **Step 9 — Full-text note search**
-  - [ ] Postgres `tsvector` + GIN index on `Note.content`
-  - [ ] `GET /api/notes/search?q=X`
-  - [ ] Search UI (dashboard or notes panel)
-  - [ ] No external search service
-
-### ✅ Completed (Current Session)
-
-- [x] **All Notes page** (`/notes`) — fetch notes with video+course info via `GET /api/notes`, group by course, search by content/title, modal editor reuse
-- [x] **Codebase restructuring** — moved docs to `docs/`, grouped components into `layout/`, `course/`, `notes/`, `search/` subdirectories
-- [x] **Transcript fetching utility** (`src/lib/transcript.ts`) — wraps `youtube-transcript-plus` with typed error handling
-- [x] **Transcript test route** (`src/app/api/test-transcript/route.ts`) — temp GET handler to validate against real videos
-- [x] **Transcript QA page** (`src/app/test-transcript/page.tsx`) — temp UI form + history list for manual pipeline testing
+- [ ] Redis (Upstash) cache-aside layer in front of `AIContent` reads — pure optimization, not correctness-critical
+- [ ] Trending videos — based on actual watch activity (`status → in_progress` transitions), not AI notes requests, since a video can be popular without anyone needing a summary
+- [ ] Save video to personal playlist/bookmarks
+- [ ] Daily cron sweep to retry stuck `failed` rows (only relevant once Redis/trending exist; not needed for the inline-retry-on-request approach above)
+- [ ] Full-text note search (Postgres `tsvector` + GIN index)
+- [ ] Mobile responsiveness pass across all pages
 
 ---
 

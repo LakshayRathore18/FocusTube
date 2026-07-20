@@ -115,6 +115,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         if (!res.ok) throw new Error("Save failed");
         setSaveState("saved");
         setLastSaved(new Date());
+        // Immediately update the parent — notes button turns blue right away
+        onHasContentChange?.(videoId, true);
       })
       .catch(() => {
         setSaveState("error");

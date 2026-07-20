@@ -20,8 +20,16 @@ FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and 
   - Landing page (redirects authenticated users to dashboard)
   - Continue Watching API (up to 3 in_progress videos with course info)
   - All Notes page (/notes): notes grouped by course, search filter, modal note editor
+  - AI content generation (transcript → summary + 5-question quiz) with shared AIContent + per-user Video.aiContentUnlockedAt unlock stamp
+  - "Generate Notes" button per video with polling (2s intervals, max 15 attempts)
+  - AI study notes modal with summary display and per-question answer toggle
+  - Content-status batch endpoint for pre-populating notes/AI button states on mount
+  - Stale JWT recovery (user upsert) on playlist import
+  - Improved error handling: response text fallback on JSON parse failure + transaction try-catch
+  - Middleware-level landing page redirect for authenticated users
+  - No auto-play on course page (video player only opens on explicit click)
 - **Running**: Dev server runs on `localhost:3000`.
-- **Database**: 6 tables deployed on Neon PostgreSQL. Prisma client generated and active.
+- **Database**: 8 tables deployed on Neon PostgreSQL. Prisma client generated and active.
 
 ---
 
@@ -30,11 +38,11 @@ FocusTube is a study platform built with Next.js 16, Prisma 7, Tailwind v4, and 
 ```
 focustube/
 ├── docs/
-│   ├── agent.md                ← AI agent context + Next.js version warnings
+│   ├── AGENTS.md                ← AI AGENTS context + Next.js version warnings
 │   ├── structure.md            ← This file: human-readable project guide
 │   ├── todo.md                 ← Build tracker + design decisions
 │   ├── issues.md               ← Issue tracker
-│   ├── CLAUDE.md               ← Quick link to agent.md
+│   ├── CLAUDE.md               ← Quick link to AGENTS.md
 │   └── README.md               ← Project overview
 ├── prisma/
 │   └── schema.prisma           ← DB schema (all 6 models defined here)
@@ -52,6 +60,9 @@ focustube/
 │   │   │   ├── stats/
 │   │   │   │   └── weekly/
 │   │   │   │       └── route.ts ← GET (weekly stats for sidebar widget)
+│   │   │   ├── ai/
+│   │   │   │   └── content/
+│   │   │   │       └── route.ts   ← POST: production AI notes + quiz generation (concurrency-safe, truncates transcript to 20k chars for Vercel 60s timeout)
 │   │   │   └── videos/
 │   │   │       ├── continue-watching/
 │   │   │       │   └── route.ts  ← GET (up to 3 in_progress videos with course info, for dashboard)
@@ -59,6 +70,8 @@ focustube/
 │   │   │           ├── route.ts  ← PATCH (update video watch state)
 │   │   │           └── notes/
 │   │   │               └── route.ts ← GET/PUT (fetch/upsert notes)
+│   │   │       └── content-status/
+│   │   │           └── route.ts ← GET (batch notes + AI status per video, reads Video.aiContentUnlockedAt)
 │   │   ├── courses/
 │   │   │   └── [id]/
 │   │   │       └── page.tsx   ← Course detail server component, delegates to CourseContent
@@ -87,7 +100,11 @@ focustube/
 │   │   └── search/
 │   │       └── SearchOverlay.tsx ← Global course search overlay
 │   ├── lib/
+│   │   ├── ai/
+│   │   │   ├── provider.ts    ← AIProvider interface + GenerateNotesResult/QuizPayload types
+│   │   │   └── gemini.ts      ← Gemini provider implementing AIProvider (@google/genai, model: gemini-3.1-flash-lite)
 │   │   ├── db.ts              ← Prisma client singleton with PrismaPg driver adapter
+│   │   ├── transcript.ts      ← YouTube transcript fetcher (wraps youtube-transcript-plus)
 │   │   └── youtube.ts         ← YouTube Data API v3: extractPlaylistId, fetchPlaylistData, fetchPlaylistItems
 │   ├── auth.ts                ← NextAuth v5 Config (adapter, Google provider, JWT callbacks)
 │   └── proxy.ts               ← Route protection (NextAuth v5 auth check for /dashboard, /courses)
@@ -140,6 +157,27 @@ Prisma client singleton that configures connection pooling using `pg` and maps t
 - Prevents database connection exhaustion caused by Next.js hot-reloads in development.
 - Uses a driver adapter to satisfy Prisma 7 requirements.
 
+### `src/lib/ai/provider.ts`
+AI provider interface defining the contract for generating study notes from transcripts.
+- `AIProvider` interface with a single method: `generateNotes(transcript: string): Promise<GenerateNotesResult>`
+- `GenerateNotesResult` — tagged union: `{ success: true, summary, quiz }` or `{ success: false, reason }`
+- `QuizPayload` — `{ questions: { question, options: string[], answer: number }[] }`
+- Enables swapping between different AI backends (Gemini, Grok, etc.) without changing route or UI code.
+
+### `src/lib/ai/gemini.ts`
+Gemini provider implementing `AIProvider`.
+- Uses `@google/genai` SDK (Google GenAI SDK).
+- Default model: `gemini-3.1-flash-lite` (overridable via `GEMINI_MODEL` env var).
+- `generateNotes()` — generates structured summary + 5-question quiz from a transcript. Includes markdown code fence stripping as a fallback before JSON parsing, and Zod schema validation.
+- Requires `GEMINI_API_KEY` environment variable.
+- Moved from the old `src/lib/gemini.ts` (deleted) into the provider pattern.
+
+### `src/lib/transcript.ts`
+YouTube transcript fetching utility.
+- Wraps the `youtube-transcript-plus` npm package.
+- Returns typed results: `{ success: true, transcript: string }` or `{ success: false, reason: string }`.
+- Classifies errors into descriptive reason codes (e.g., "TRANSCRIPT_DISABLED", "VIDEO_UNAVAILABLE").
+
 ### `src/lib/youtube.ts`
 YouTube Data API v3 utility functions:
 - `extractPlaylistId(url)` — parses various YouTube URL formats to extract the playlist ID
@@ -180,6 +218,7 @@ Server component for the course detail page (`/courses/[id]`).
 
 ### `src/components/course/CourseContent.tsx`
 Client component that provides the interactive course experience:
+- **No auto-play**: The video player modal only opens when the user explicitly clicks a video row. No auto-play on mount (removed the `useEffect` that auto-played the first `in_progress` video).
 - **Modal video player**: Clicking a video opens a centered modal with YouTube iframe embed (autoplay enabled)
 - **Modal features**: Dark backdrop (`bg-black/70` + `backdrop-blur-sm`), close via X button, Escape key, or clicking outside the player
 - **Status indicator system**: Each video has a circular status icon — empty gray ring (not_started), amber partial-progress ring (watching, with progress % from `lastWatchedSeconds`/`durationSeconds`), solid green checkmark (completed)
@@ -190,10 +229,25 @@ Client component that provides the interactive course experience:
 - **Row hover**: Lightened background on hover reinforces clickability
 - **Unavailable videos**: Dimmed with "Unavailable" badge
 - **Course header**: Shows title, thumbnail, video count, completed count, and progress bar
+- **AI Generate Notes button**: Sparkle icon per video row. On click → `POST /api/ai/content` (sends `{ youtubeVideoId, courseId }`). Has 4 visual states: idle (sparkle icon), generating (animated spinner), ready (filled book icon → opens AI content modal), failed (dimmed, still clickable to retry)
+- **Polling**: When response is `"pending"`, polls every 2s (max 15 attempts) by re-POSTing to the same endpoint (includes `courseId` for precise Video stamping). Per-video attempt tracking via `useRef` to avoid cross-video interference.
+- **AIContentModal**: Shows formatted summary text + 5 quiz questions with per-question "Show answer" toggle. Accessible via Escape key and backdrop click.
+
+### `src/app/api/ai/content/route.ts`
+**Production** AI content generation endpoint.
+- Auth-protected (same session pattern as other routes).
+- **Request body**: `{ youtubeVideoId: string, courseId?: string }` — `courseId` is used to precisely pin the user's Video row for the unlock stamp.
+- **Step 1 — Check existing**: Queries `AIContent` table by `youtubeVideoId`. Returns `"ready"` (with data), `"pending"`, or `"failed"` (max 3 attempts) immediately if found.
+- **Step 2 — Claim & generate**: Inserts or updates an `AIContent` row to `"pending"`. Uses the `@unique` constraint on `youtubeVideoId` as a DB-level dedup lock — concurrent inserts hit P2002 (unique violation) and safely fall back to returning `"pending"`. The winner fetches the transcript via `getTranscript()` then calls `geminiProvider.generateNotes()`, updating the row to `"ready"` or `"failed"`.
+  - **Transcript truncation**: As a stopgap against Vercel Hobby's 60s function timeout on very long videos, the transcript is truncated to the first 20,000 characters before being passed to Gemini. This is a temporary mitigation; the proper fix (streaming response or background job) is noted as out of scope.
+- **Unlock stamp**: When content becomes ready (whether newly generated or already existing from another user), the current user's `Video` row gets `aiContentUnlockedAt = now()`. This tracks per-user green button state while keeping AIContent globally shared.
+- **Response shape**: `{ status: "pending" | "ready" | "failed", summary?, quiz?, reason? }`.
 
 ### `src/app/api/courses/route.ts`
 - `GET /api/courses`: Returns all courses for the authenticated user with video counts AND per-course completed video count (via parallel `groupBy`), sorted by most recently updated
 - `POST /api/courses`: Imports a YouTube playlist — extracts playlist ID, fetches metadata + videos from YouTube API, creates Course + Video rows in a Prisma transaction. Returns 409 if user already imported the same playlist
+  - **User upsert**: Before importing, recreates the user's DB record from session data if it was lost (stale JWT after DB reset)
+  - **Transaction error handling**: The `$transaction` is wrapped in try-catch so DB errors return proper JSON responses instead of HTML error pages
 
 ### `src/app/api/courses/[id]/route.ts`
 - `GET /api/courses/[id]`: Returns a single course with all its videos (ordered by position). Includes ownership check (403 if forbidden, 404 if not found)
@@ -226,7 +280,9 @@ Client component providing a global search overlay for quickly navigating to cou
 Tailwind CSS v4 entry point. Configures native CSS variables and themes inside `@theme inline` (replacing the legacy `tailwind.config.js` or `tailwind.config.ts`).
 
 ### `src/proxy.ts`
-Route protection proxy using NextAuth v5's `auth()` wrapper. Protects `/dashboard` and `/courses` paths, redirecting unauthenticated users to `/sign-in`.
+Route protection proxy using NextAuth v5's `auth()` wrapper. Protects `/dashboard`, `/courses`, `/notes`, and `/settings` paths, redirecting unauthenticated users to `/sign-in`. Also includes `/` in the matcher to redirect authenticated users from the landing page to `/dashboard`.
+
+**Matcher**: `["/", "/dashboard/:path*", "/courses/:path*", "/notes/:path*", "/settings/:path*"]`
 
 ---
 
@@ -262,6 +318,7 @@ A video from an imported YouTube playlist.
 **Shared globally across all users** to avoid duplicate LLM processing fees and API lookups.
 - Keyed by `youtubeVideoId` (@unique).
 - Stores `transcript`, `summary`, and a dynamic `quiz` JSON payload.
+- Per-user unlock tracking is done via `Video.aiContentUnlockedAt` — when a user triggers or reuses AI content, their `Video` row gets a timestamp stamp, and the UI reads that to show the green button state.
 - Schema shape for `quiz` column:
   ```json
   {
@@ -274,6 +331,9 @@ A video from an imported YouTube playlist.
     ]
   }
   ```
+
+### `Video` (additional field)
+- `aiContentUnlockedAt DateTime?` — Set when the user first generates (or unlocks existing) AI content for this video. Read by `GET /api/courses/[id]/content-status` to determine the green button state per-user.
 
 ### `Note`
 User-created text notes for specific videos.
@@ -318,7 +378,41 @@ User-created text notes for specific videos.
 4. User clicks any video in the list → it becomes the "now playing" video.
 5. The iframe changes to the newly selected video's YouTube ID.
 
----
+### AI Content Generation Flow
+```
+[User clicks "Generate Notes" on a video]
+       │
+       ▼
+[CourseContent] POST /api/ai/content { youtubeVideoId }
+       │
+       ▼
+[API Route] Step 1 — Check AIContent table for existing row
+       │
+       ├─► ready  → return { status: "ready", summary, quiz }
+       ├─► pending → return { status: "pending" }
+       ├─► failed (≥3 attempts) → return { status: "failed", reason: "max_attempts" }
+       └─► failed (<3) or no row → fall through to Step 2
+              │
+              ▼
+       [API Route] Step 2 — Claim generation
+              │
+              ├─► INSERT into AIContent (status: "pending")
+              │   └─► If P2002 (race lost) → return { status: "pending" }
+              │
+              └─► Winner proceeds:
+                   ├─► getTranscript(youtubeVideoId)
+                   ├─► geminiProvider.generateNotes(transcript)
+                   └─► Update row → "ready" (success) or "failed" (failure)
+                          │
+                          ▼
+                   return { status, summary, quiz, reason }
+
+[Client-side polling]
+       │
+       ├─► "pending" → poll every 2s (re-POST /api/ai/content)
+       ├─► "ready"   → open AIContentModal with summary + quiz
+       └─► "failed"  → show error state on button (user can retry)
+```
 
 ## 6. Key CLI Commands
 

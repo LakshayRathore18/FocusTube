@@ -120,14 +120,23 @@ export default function DashboardPage() {
         body: JSON.stringify({ url }),
       });
 
-      const data = await res.json();
+      let data: Record<string, unknown>;
+      try {
+        data = await res.json();
+      } catch {
+        // Response wasn't JSON — try reading as text to show the actual error
+        const text = await res.text().catch(() => "");
+        setError(text ? `Server error: ${text.slice(0, 200)}` : "Server returned an invalid response");
+        setImporting(false);
+        return;
+      }
 
       if (!res.ok) {
         if (res.status === 409 && data.courseId) {
           router.push(`/courses/${data.courseId}`);
           return;
         }
-        setError(data.error ?? "Failed to import playlist");
+        setError((data.error as string) ?? "Failed to import playlist");
         return;
       }
 

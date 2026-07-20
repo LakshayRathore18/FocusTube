@@ -1,56 +1,28 @@
-# Issues to Resolve
+<!-- VERY IMPORTANT RULE BEFORE ANY CHANGE -->
+Database Safety — Non-Negotiable
+NEVER run any command that resets, wipes, or drops the database — this includes prisma migrate dev --reset, prisma db push --force-reset, DROP TABLE, TRUNCATE, or any migration path that Prisma reports as requiring data loss to apply.
+If a schema change cannot be applied without data loss (Prisma will say so explicitly), stop and explain the situation instead of proceeding. State exactly what data would be lost and why, then wait for explicit confirmation before running anything destructive. Do not decide this trade-off unilaterally.
+Prefer non-destructive migration paths always: default values for new required columns, backfill scripts for existing rows, or making a new column nullable first and tightening it later — instead of a reset.
+If you are ever unsure whether a command is destructive, treat it as destructive and ask first.
+
+and never update this issues.md file
+
+
+## Open Issues
+
+In src/app/api/ai/content/route.ts, before the transcript is passed to Gemini (src/lib/ai/gemini.ts), truncate it to the first 20,000 characters as a stopgap against Vercel Hobby's 60s function timeout on very long videos. Add a comment marking this as a temporary mitigation, noting the proper fix (streaming response or background job) is out of scope for this change. Don't touch any other part of the generation flow, retry logic, or error handling.
 
 ---
 
-## Before You Start
+# After Done with changes: Documentation Update Rules
 
-Read `agent.md` before making any changes.
+After completing the implementation, review the existing documentation (especially `AGENTSS.md`) and update documentation **only when applicable**.
 
-Use it to understand:
-
-- The current project architecture and status.
-- Existing project conventions and implementation patterns.
-- Relevant files for this task (see **Directory Map**).
-- Important constraints and gotchas (see **Critical Conventions & Gotchas**).
-
-Do not assume the project structure from previous tasks or memory. Follow the existing conventions documented in `agent.md` and inspect the referenced files when implementation details are needed.
-
----
-
-## Open Issues/To do
-
-
-Reasonable — easier to run through the 4-5 test cases with a form than copy-pasting URLs into the browser bar. Keep it minimal and temporary, same as the route.
-
----
-
-Create a small temporary UI page to manually test the transcript pipeline, replacing manual URL testing of `/api/test-transcript`.
-
-**Create `src/app/test-transcript/page.tsx`** (client component):
-- Simple form: one text input for a YouTube video ID (or full URL — if a full URL is pasted, extract the ID client-side using the same/similar logic as `extractPlaylistId` in `lib/youtube.ts`, or just accept raw IDs to keep it simple, your call) + a "Fetch Transcript" button
-- On submit, calls `GET /api/test-transcript?videoId=...` and shows a loading state while waiting
-- Displays the result clearly:
-  - If `success: true` — show `transcriptLength` and the `preview` text in a scrollable box
-  - If `success: false` — show the `reason` code prominently (this is the important part, since we're validating error classification)
-- Keep a running list on the page of the last 5-10 test attempts (videoId + result), so multiple test cases can be compared side by side without re-running each one — a simple array in component state is enough, no persistence needed
-- No auth check, no styling polish — plain Tailwind utility classes, functional over pretty
-- Add a comment at the top: `// TEMP: manual QA page for transcript pipeline, delete once validated`
-
-Don't touch `src/lib/transcript.ts` or the API route — this only consumes the existing endpoint.
-
----
-
-# Documentation Update Rules
-
-**Do not modify this `issues.md` file while implementing the issue.**
-
-After completing the implementation, review the existing documentation (especially `agent.md`) and update documentation **only when applicable**.
-
-### `agent.md` (AI context)
+### `AGENTSS.md` (AI context)
 
 Before editing, review the existing structure and keep the same organization.
 
-Update `agent.md` only if the implementation changes long-term project context, such as:
+Update `AGENTS.md` only if the implementation changes long-term project context, such as:
 
 - Architecture or routing changes
 - New reusable layouts/components

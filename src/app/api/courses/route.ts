@@ -88,6 +88,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Ensure the user's DB record exists (handles stale JWTs after DB reset/schema changes).
+  // If the user row is missing, re-create it from the session data.
+  if (session.user) {
+    await db.user.upsert({
+      where: { id: userId },
+      create: {
+        id: userId,
+        email: session.user.email ?? `${userId}@recover.focustube`,
+        name: session.user.name ?? "User",
+        image: session.user.image,
+      },
+      update: {},
+    });
+  }
+
   let body: { url: string };
   try {
     body = await request.json();
@@ -147,31 +162,37 @@ export async function POST(request: Request) {
   const thumbnailUrl = playlistData.thumbnailUrl ?? videos[0]?.thumbnailUrl ?? null;
 
   // Create course + videos in a transaction
-  const course = await db.$transaction(async (tx) => {
-    const createdCourse = await tx.course.create({
-      data: {
-        userId,
-        youtubePlaylistId: playlistId,
-        title: playlistData.title,
-        thumbnailUrl,
-      },
-    });
-
-    if (videos.length > 0) {
-      await tx.video.createMany({
-        data: videos.map((v) => ({
-          courseId: createdCourse.id,
-          youtubeVideoId: v.youtubeVideoId,
-          title: v.title,
-          position: v.position,
-          thumbnailUrl: v.thumbnailUrl,
-          isAvailable: true,
-        })),
+  let course: Awaited<ReturnType<typeof db.course.create>>;
+  try {
+    course = await db.$transaction(async (tx) => {
+      const createdCourse = await tx.course.create({
+        data: {
+          userId,
+          youtubePlaylistId: playlistId,
+          title: playlistData.title,
+          thumbnailUrl,
+        },
       });
-    }
 
-    return createdCourse;
-  });
+      if (videos.length > 0) {
+        await tx.video.createMany({
+          data: videos.map((v) => ({
+            courseId: createdCourse.id,
+            youtubeVideoId: v.youtubeVideoId,
+            title: v.title,
+            position: v.position,
+            thumbnailUrl: v.thumbnailUrl,
+            isAvailable: true,
+          })),
+        });
+      }
+
+      return createdCourse;
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to save course";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   return NextResponse.json(
     {

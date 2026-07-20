@@ -6,24 +6,31 @@ import { NextResponse } from "next/server";
  *
  * Uses NextAuth v5's `auth()` helper to read the session JWT.
  *
- * Protected: /dashboard, /courses
+ * Protected: /dashboard, /courses, /notes, /settings
  * Redirect target: /sign-in
+ *
+ * Also redirects authenticated users from / → /dashboard so the
+ * landing page never shows for signed-in users.
  */
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const pathname = req.nextUrl.pathname;
 
+  // Signed-in users on the landing page → redirect to dashboard
+  if (pathname === "/" && isLoggedIn) {
+    return NextResponse.redirect(new URL("/dashboard", req.nextUrl.origin));
+  }
+
   const protectedPaths = ["/dashboard", "/courses", "/notes", "/settings"];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected && !isLoggedIn) {
-    const signInUrl = new URL("/sign-in", req.nextUrl.origin);
-    return NextResponse.redirect(signInUrl);
+    return NextResponse.redirect(new URL("/sign-in", req.nextUrl.origin));
   }
 
   return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/courses/:path*", "/notes/:path*", "/settings/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/courses/:path*", "/notes/:path*", "/settings/:path*"],
 };
