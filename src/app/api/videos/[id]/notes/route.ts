@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { isNoteContentEmpty } from "@/lib/utils";
 
 /**
  * GET /api/videos/[id]/notes
@@ -43,6 +44,7 @@ export async function GET(
  * Body: { content: string } — Tiptap HTML content
  * Upserts the note for this video using the unique videoId constraint.
  * Ownership verified before writing.
+ * Returns 400 if content is empty after stripping HTML.
  */
 export async function PUT(
   request: Request,
@@ -63,6 +65,14 @@ export async function PUT(
 
   if (typeof body.content !== "string") {
     return NextResponse.json({ error: "Missing or invalid 'content' field" }, { status: 400 });
+  }
+
+  // ── Backend validation: reject empty content ────────────────────────
+  if (isNoteContentEmpty(body.content)) {
+    return NextResponse.json(
+      { error: "Note content cannot be empty" },
+      { status: 400 }
+    );
   }
 
   const { id } = await params;
@@ -90,4 +100,49 @@ export async function PUT(
   });
 
   return NextResponse.json(note);
+}
+
+/**
+ * DELETE /api/videos/[id]/notes
+ *
+ * Deletes the note for this video if it exists.
+ * Ownership verified before deleting.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  // Verify ownership: video → course → user
+  const video = await db.video.findFirst({
+    where: { id, course: { userId } },
+    select: { id: true },
+  });
+
+  if (!video) {
+    return NextResponse.json({ error: "Video not found" }, { status: 404 });
+  }
+
+  // Check if a note exists before trying to delete
+  const existing = await db.note.findUnique({
+    where: { videoId: id },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Note not found" }, { status: 404 });
+  }
+
+  await db.note.delete({
+    where: { videoId: id },
+  });
+
+  return NextResponse.json({ success: true });
 }

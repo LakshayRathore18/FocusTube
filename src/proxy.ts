@@ -21,7 +21,7 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl.origin));
   }
 
-  const protectedPaths = ["/dashboard", "/courses", "/notes", "/settings"];
+  const protectedPaths = ["/dashboard", "/courses", "/learning", "/settings"];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected && !isLoggedIn) {
@@ -32,5 +32,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/courses/:path*", "/notes/:path*", "/settings/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/courses/:path*", "/learning/:path*", "/settings/:path*"],
 };

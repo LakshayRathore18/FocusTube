@@ -17,6 +17,7 @@ export type Course = {
   thumbnailUrl: string | null;
   videos: Video[];
   _count: { videos: number };
+  lastSyncedAt: string | null;
 };
 
 export type StudySummary = {
@@ -27,6 +28,8 @@ export type StudySummary = {
 export type QuizPayload = {
   questions: { question: string; options: string[]; answer: number }[];
 };
+
+export type LearningResourceType = "notes" | "summary" | "quiz";
 
 export type AiGenerationState = {
   status: "idle" | "generating" | "pending" | "ready" | "failed";

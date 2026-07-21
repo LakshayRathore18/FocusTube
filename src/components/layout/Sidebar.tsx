@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
-import { LayoutDashboard, FileText, Settings, CheckCircle2, Menu } from "lucide-react";
+import { LayoutDashboard, BookOpen, FileText, Settings, CheckCircle2, Menu } from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -16,7 +16,8 @@ interface SidebarProps {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/notes", label: "All Notes", icon: FileText },
+  { href: "/courses", label: "Courses", icon: BookOpen },
+  { href: "/learning", label: "Learning", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

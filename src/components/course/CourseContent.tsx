@@ -8,6 +8,7 @@ import StatusBadge from "./StatusBadge";
 import NotesModal from "./NotesModal";
 import VideoPlayerModal from "./VideoPlayerModal";
 import AIContentModal from "./AIContentModal";
+import SyncButton from "./SyncButton";
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
@@ -116,9 +117,15 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
   }
 
   function handleHasContentChange(videoId: string, hasContent: boolean) {
-    if (hasContent) {
-      setVideosWithNotes((prev) => ({ ...prev, [videoId]: true }));
-    }
+    setVideosWithNotes((prev) => {
+      if (hasContent) {
+        return { ...prev, [videoId]: true };
+      }
+      // Note was deleted — remove from map so button styling updates immediately
+      const next = { ...prev };
+      delete next[videoId];
+      return next;
+    });
   }
 
   // ─── AI Content Generation ───────────────────────────────────
@@ -268,6 +275,22 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
     }
   }
 
+  // ─── Sync Complete ───────────────────────────────────────
+
+  /**
+   * Called by SyncButton after a successful sync.
+   * router.refresh() (inside SyncButton) reloads server data;
+   * here we just clear any locally-cached AI / notes state so
+   * the re-fetched server data is the single source of truth.
+   */
+  const handleSyncComplete = useCallback(() => {
+    // Reset local UI caches — they'll be rebuilt from fresh server data
+    setAiGenStates({});
+    setVideosWithNotes({});
+    setLocalStatuses({});
+    setPlayingVideo(null);
+  }, []);
+
   const resolvedVideos = course.videos.map(resolveVideo);
   const completedCount = resolvedVideos.filter((v) => v.status === "completed").length;
   const activeVideo = playingVideo ? resolveVideo(playingVideo) : null;
@@ -285,8 +308,8 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Top bar: back link + delete button */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Top bar: back link + sync + delete */}
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
@@ -297,15 +320,20 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
           Back to Dashboard
         </Link>
 
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-          </svg>
-          Delete course
-        </button>
+        {/* Right-side actions */}
+        <div className="flex items-center gap-2">
+          <SyncButton courseId={course.id} onSyncComplete={handleSyncComplete} />
+
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 dark:border-red-800 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+            </svg>
+            Delete course
+          </button>
+        </div>
       </div>
 
       {/* Delete confirmation modal */}
@@ -491,7 +519,12 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
                     <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap">Play</span>
                   </button>
                 ) : (
-                  <span className="text-xs text-red-500 dark:text-red-400 shrink-0">Unavailable</span>
+                  <span className="inline-flex items-center gap-1 shrink-0 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                    Archived
+                  </span>
                 )}
 
                 {/* Generate Notes / AI Study Notes button */}

@@ -45,6 +45,7 @@ export default async function CoursePage({
     <CourseContent
       course={{
         ...course,
+        lastSyncedAt: course.lastSyncedAt?.toISOString() ?? null,
         _count: { videos: videoCount },
       }}
       playVideoId={playVideoId}

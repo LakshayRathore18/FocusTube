@@ -46,6 +46,7 @@ export async function GET(
 
   return NextResponse.json({
     ...course,
+    lastSyncedAt: course.lastSyncedAt?.toISOString() ?? null,
     _count: { videos: videoCount },
   });
 }

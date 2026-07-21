@@ -21,14 +21,22 @@ export default function NotesModal({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  const flushAndClose = useCallback(async () => {
-    await noteEditorRef.current?.flushAndSave();
+  /** Closes immediately without saving — used for X, Escape, overlay click. */
+  const justClose = useCallback(() => {
     onCloseRef.current();
+  }, []);
+
+  /** Saves and only closes if the save/deletion succeeds. Used for Save & Close. */
+  const saveAndClose = useCallback(async () => {
+    const shouldClose = await noteEditorRef.current?.flushAndSave();
+    if (shouldClose !== false) {
+      onCloseRef.current();
+    }
   }, []);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") flushAndClose();
+      if (e.key === "Escape") justClose();
     }
     document.addEventListener("keydown", handleKey);
     document.body.style.overflow = "hidden";
@@ -36,12 +44,12 @@ export default function NotesModal({
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = "";
     };
-  }, [flushAndClose]);
+  }, [justClose]);
 
   return (
     <div
       ref={overlayRef}
-      onClick={(e) => { if (e.target === overlayRef.current) flushAndClose(); }}
+      onClick={(e) => { if (e.target === overlayRef.current) justClose(); }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
     >
       <div
@@ -59,7 +67,7 @@ export default function NotesModal({
             </h2>
           </div>
           <button
-            onClick={flushAndClose}
+            onClick={justClose}
             className="shrink-0 ml-3 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
             aria-label="Close notes"
           >
@@ -77,7 +85,7 @@ export default function NotesModal({
         {/* Save & Close footer */}
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-zinc-800">
           <button
-            onClick={flushAndClose}
+            onClick={saveAndClose}
             className="rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-5 py-2 text-sm font-semibold text-white transition-colors"
           >
             Save &amp; Close

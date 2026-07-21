@@ -57,8 +57,9 @@ model Course {
   youtubePlaylistId String
   title             String
   thumbnailUrl      String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastSyncedAt      DateTime? // Set each time the user triggers a playlist sync
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   videos Video[]
