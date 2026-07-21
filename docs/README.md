@@ -2,7 +2,7 @@
 
 A distraction-free YouTube study platform. Paste a playlist URL → get a structured course → watch videos inside the app → take rich text notes → generate AI study notes with summaries and quizzes.
 
-![FocusTube Screenshot](./public/FocusTube.png)
+![FocusTube Screenshot](../public/FocusTube.png)
 
 Deployed on [Vercel](https://focus-tube-eight.vercel.app/) 
 
