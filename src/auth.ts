@@ -21,6 +21,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Prevents OAuthAccountNotLinked when the same email signs in via
+      // different OAuth flows (e.g. re-auth after DB wipe). Safe here
+      // because we only have one provider (Google).
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   session: {

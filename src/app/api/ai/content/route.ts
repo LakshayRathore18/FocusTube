@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         where: { id: existing.id, status: "failed" },
         data: {
           status: "pending",
-          attempts: existing.attempts,
+          attempts: { increment: 1 },
           lastAttemptedAt: now,
         },
       });
