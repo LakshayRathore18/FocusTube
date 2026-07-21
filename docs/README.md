@@ -2,6 +2,10 @@
 
 A distraction-free YouTube study platform. Paste a playlist URL → get a structured course → watch videos inside the app → take rich text notes → generate AI study notes with summaries and quizzes.
 
+![FocusTube Screenshot](./public/FocusTube.png)
+
+Deployed on [Vercel](https://focus-tube-eight.vercel.app/) 
+
 ## Features
 
 - **Playlist Import** — Paste any YouTube playlist URL; the app extracts metadata and all videos via YouTube Data API v3
@@ -72,6 +76,8 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with Google.
 | `GOOGLE_CLIENT_SECRET` | Same as above |
 | `YOUTUBE_API_KEY` | Google Cloud Console → YouTube Data API v3 |
 | `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) |
+| `SUPADATA_API_KEY` | [supadata.ai](https://supadata.ai) |
+
 
 ## Key Scripts
 
