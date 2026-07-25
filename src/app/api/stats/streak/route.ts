@@ -107,6 +107,10 @@ export async function GET() {
         break;
       }
     }
+  } else if (sorted.length > 0) {
+    // User has studied before but not today or yesterday — they just logged in
+    // after a break. Count today as day 1 of a new streak.
+    currentStreak = 1;
   }
 
   // ── Weekly activity (Mon-Sun for current week) ─────────────
