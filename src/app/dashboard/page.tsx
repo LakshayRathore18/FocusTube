@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import DashboardPage from "@/components/dashboard/DashboardPage";
 import FirstTimeExperience from "@/components/dashboard/FirstTimeExperience";
-import StreakPopup from "@/components/dashboard/StreakPopup";
-import StreakToast from "@/components/dashboard/StreakToast";
 
 export default function Dashboard() {
   const [playlistCount, setPlaylistCount] = useState<number | null>(null);
@@ -36,11 +34,5 @@ export default function Dashboard() {
   }
 
   // Returning user — show normal dashboard
-  return (
-    <>
-      <StreakPopup />
-      <StreakToast />
-      <DashboardPage />
-    </>
-  );
+  return <DashboardPage />;
 }

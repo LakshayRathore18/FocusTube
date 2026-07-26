@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Book, Play, Percent, FileText, Sparkles, LogOut, ExternalLink, Flame } from "lucide-react";
+import { Book, Play, Percent, FileText, Sparkles, LogOut, ExternalLink } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,13 +14,6 @@ type LearningStats = {
   completedVideos: number;
   personalNotes: number;
   aiSummaries: number;
-};
-
-type StreakData = {
-  currentStreak: number;
-  longestStreak: number;
-  todayCompleted: boolean;
-  weeklyActivity: boolean[];
 };
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
@@ -126,8 +119,6 @@ export default function SettingsPageClient() {
   const { data: session, status } = useSession();
   const [stats, setStats] = useState<LearningStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [streak, setStreak] = useState<StreakData | null>(null);
-  const [streakLoading, setStreakLoading] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -147,17 +138,7 @@ export default function SettingsPageClient() {
       .finally(() => setStatsLoading(false));
   }, []);
 
-  useEffect(() => {
-    fetch("/api/stats/streak")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data.currentStreak === "number") {
-          setStreak(data);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setStreakLoading(false));
-  }, []);
+
 
   // Loading state
   if (status === "loading" || (status === "authenticated" && statsLoading && !stats)) {
@@ -246,25 +227,7 @@ export default function SettingsPageClient() {
           <SectionCard title="Your Learning">
             {stats.totalPlaylists > 0 ? (
               <>
-                {/* Streak info */}
-                {streak && !streakLoading && (
-                  <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
-                    <div className="w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
-                      <Flame className="w-5 h-5 text-orange-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        Current Streak: {streak.currentStreak} Days
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Longest: {streak.longestStreak} Days
-                      </p>
-                    </div>
-                    {streak.todayCompleted && (
-                      <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Today: ✅</span>
-                    )}
-                  </div>
-                )}
+
                 <div className="grid gap-3 sm:grid-cols-2">
                   <StatCard
                     icon={<Book className="w-5 h-5" />}
