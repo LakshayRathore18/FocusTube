@@ -2,7 +2,13 @@
 interview.md
 
 # dependencies
-/node_modules
+**/node_modules/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+backend/.env
+backend/.cache/
 /.pnp
 .pnp.*
 .yarn/*
@@ -15,8 +21,8 @@ interview.md
 /coverage
 
 # next.js
-/.next/
-/out/
+**/.next/
+**/out/
 
 # production
 /build
@@ -37,12 +43,13 @@ yarn-error.log*
 .env.development*
 .env.production*
 .env.test*
+**/.env.*
+!**/.env.example
+/docs/archive/personal/
 
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
-sbuildinfo
 next-env.d.ts
