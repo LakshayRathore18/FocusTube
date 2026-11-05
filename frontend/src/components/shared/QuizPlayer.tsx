@@ -23,7 +23,7 @@ interface QuizPlayerProps {
  * Reusable quiz interaction component.
  *
  * Manages answer selection, reveal, and reset state internally.
- * Used by both AIContentModal (course page) and LearningWorkspace (learning hub)
+ * Used by both AIContentModal (course page) and the shared study workspace
  * to eliminate duplicated quiz logic.
  */
 export default function QuizPlayer({

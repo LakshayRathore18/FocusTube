@@ -12,8 +12,9 @@ focustube/
 |   |   |   |-- course/           Course/video UI and AI content modals
 |   |   |   |-- dashboard/        Dashboard and first-time experience
 |   |   |   |-- layout/           Navbar, sidebar, and application shell
-|   |   |   |-- learning/         Learning hub and workspace
-|   |   |   |-- notes/            Rich text editor and note library
+|   |   |   |-- learning/         Shared study workspace and video chat
+|   |   |   |-- study-library/    Cross-course saved resource browser
+|   |   |   |-- notes/            Rich text editor
 |   |   |   |-- search/           Search overlay
 |   |   |   |-- settings/         Settings UI
 |   |   |   `-- shared/           Reused UI such as the quiz player
@@ -56,7 +57,9 @@ focustube/
 
 ## Placement rules
 
-Video chat uses `backend/app/routers/rag.py`, `backend/app/services/rag.py`, and `backend/app/services/rag_provider.py`. UI components are `VideoChat.tsx` and `ChatVideoPicker.tsx` under `frontend/src/components/learning/`. Frontend interaction tests live in `frontend/tests/`; run them with root `npm.cmd run test`. See [RAG explained simply](RAG_GUIDE.md) for the complete RAG file map.
+The main navigation is Dashboard, Courses, Study Library, and Settings. `/study-library` browses saved notes, summaries, and quizzes directly, using `backend/app/routers/study_library.py`. Legacy `/learning` links redirect there; `/learning/[courseId]` checks ownership before redirecting with a course filter. The former course grid/resource selector components have been removed, while the shared workspace stays available to Courses.
+
+Video chat uses `backend/app/routers/rag.py`, `backend/app/services/rag.py`, and `backend/app/services/rag_provider.py`. UI components include `VideoChat.tsx` and `LearningWorkspace.tsx` under `frontend/src/components/learning/`. Frontend interaction tests live in `frontend/tests/`; run them with root `npm.cmd run test`. See [RAG explained simply](RAG_GUIDE.md) for the complete RAG file map.
 
 - Add pages and route layouts in `frontend/src/app/`; group UI components by domain in `frontend/src/components/`.
 - Keep browser code free of database and provider credentials. The browser uses same-origin `/api/*`; Next.js forwards requests to FastAPI.

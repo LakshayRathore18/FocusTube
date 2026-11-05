@@ -1,443 +1,169 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import NoteEditor from "@/components/notes/NoteEditor";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Brain, FileText, MessageCircle, Sparkles, X } from "lucide-react";
+import NoteEditor, { type NoteEditorHandle } from "@/components/notes/NoteEditor";
 import QuizPlayer from "@/components/shared/QuizPlayer";
 import type { StudySummary, QuizPayload, LearningResourceType } from "@/components/course/types";
-import { FileText, Sparkles, Brain, X, MessageCircle } from "lucide-react";
-import VideoChat from "./VideoChat";
-import AiGenerationProgress from "../course/AiGenerationProgress";
 import { useVideoChat } from "@/lib/use-video-chat";
 import { aiErrorMessage } from "@/lib/ai-errors";
+import AiGenerationProgress from "../course/AiGenerationProgress";
+import VideoChat from "./VideoChat";
+import styles from "./LearningWorkspace.module.css";
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
-// To add a new learning tool (Flashcards, Transcript, Bookmarks, etc.),
-// add a new entry to this array with a unique id, label, and icon.
-// Then create the tab content component and wire it in the switch below.
-
-type TabId = LearningResourceType;
-
-interface TabConfig {
-  id: TabId;
-  label: string;
-  icon: React.ReactNode;
-}
-
-const TABS: TabConfig[] = [
-  { id: "chat", label: "Chat", icon: <MessageCircle className="w-4 h-4" /> },
-  { id: "notes",   label: "Notes",     icon: <FileText className="w-4 h-4" /> },
-  { id: "summary", label: "AI Summary", icon: <Sparkles className="w-4 h-4" /> },
-  { id: "quiz",    label: "Quiz",      icon: <Brain className="w-4 h-4" /> },
-];
-
-// ─── Tab Button ─────────────────────────────────────────────────────────────
-
-function TabBar({
-  activeTab,
-  onTabChange,
-  aiReady,
-  quizCount,
-  chatEnabled,
-}: {
-  activeTab: TabId;
-  onTabChange: (tab: TabId) => void;
-  aiReady: boolean;
-  quizCount: number;
-  chatEnabled: boolean;
-}) {
-  return (
-    <div className="chat-scrollbar flex shrink-0 items-center gap-0 sm:gap-1 overflow-x-auto border-b border-zinc-800 bg-zinc-900/50 px-3 sm:px-5">
-      {TABS.filter((tab) => tab.id !== "chat" || chatEnabled).map((tab) => {
-        const isActive = activeTab === tab.id;
-        // Disable AI Summary / Quiz tabs if AI content isn't loaded yet
-        const disabled = (tab.id === "summary" || tab.id === "quiz") && !aiReady;
-
-        return (
-          <button
-            key={tab.id}
-            onClick={() => !disabled && onTabChange(tab.id)}
-            disabled={disabled}
-            className={`relative flex shrink-0 items-center gap-2 px-2.5 sm:px-3 py-3 text-xs font-semibold transition-colors ${
-              isActive
-                ? "text-blue-400"
-                : disabled
-                  ? "text-zinc-600 cursor-not-allowed"
-                  : "text-zinc-400 hover:text-zinc-200"
-            }`}
-            title={disabled ? "Generate AI content first" : tab.label}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-            {tab.id === "quiz" && quizCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
-                {quizCount}
-              </span>
-            )}
-            {isActive && (
-              <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-blue-500 rounded-full" />
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── AI Summary Tab ─────────────────────────────────────────────────────────
-
-function SummaryTab({ summary }: { summary: StudySummary }) {
-  return (
-    <div className="space-y-4 p-5">
-      {/* Hook / TL;DR */}
-      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4">
-        <p className="text-sm font-medium text-emerald-200 leading-relaxed">
-          {summary.hook}
-        </p>
-      </div>
-
-      {/* Key Takeaways */}
-      <div>
-        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-          Key Takeaways
-        </h4>
-        <ul className="space-y-2">
-          {summary.keyPoints.map((point, pi) => (
-            <li
-              key={pi}
-              className="flex items-start gap-3 rounded-xl bg-zinc-800/50 p-3 border border-zinc-800"
-            >
-              <span className="flex items-center justify-center w-5 h-5 shrink-0 mt-0.5 rounded-full bg-blue-900/30 text-[11px] font-semibold text-blue-300">
-                {pi + 1}
-              </span>
-              <span className="text-sm text-zinc-300 leading-relaxed">
-                {point}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-// ─── Quiz Tab ───────────────────────────────────────────────────────────────
-
-function QuizTab({ quiz }: { quiz: QuizPayload }) {
-  return (
-    <div className="p-5">
-      <QuizPlayer questions={quiz.questions} resetLabel="Reset" />
-    </div>
-  );
-}
-
-// ─── Loading skeleton ───────────────────────────────────────────────────────
-
-function LoadingSkeleton() {
-  return (
-    <div className="animate-pulse space-y-4 p-5">
-      <div className="h-20 rounded-xl bg-zinc-800/50" />
-      <div className="h-4 bg-zinc-800/50 rounded w-1/3" />
-      <div className="h-10 bg-zinc-800/50 rounded" />
-      <div className="h-10 bg-zinc-800/50 rounded" />
-      <div className="h-10 bg-zinc-800/50 rounded" />
-    </div>
-  );
-}
-
-// ─── Main LearningWorkspace Component ────────────────────────────────────────
+const tabs = [
+  { id: "notes", label: "Personal notes", icon: FileText },
+  { id: "summary", label: "AI summary", icon: Sparkles },
+  { id: "quiz", label: "Quiz", icon: Brain },
+  { id: "chat", label: "Ask AI", icon: MessageCircle },
+] as const;
+type AiContent = { summary: StudySummary | null; quiz: QuizPayload | null };
 
 interface LearningWorkspaceProps {
   videoId: string;
   youtubeVideoId: string;
   videoTitle: string;
   courseId: string;
-  /** Optional — which tab to open initially (defaults to "notes") */
-  initialTab?: TabId;
+  initialTab?: LearningResourceType;
+  savedOnly?: boolean;
   onClose: () => void;
 }
 
-export default function LearningWorkspace({
-  videoId,
-  youtubeVideoId,
-  videoTitle,
-  courseId,
-  initialTab = "notes",
-  onClose,
-}: LearningWorkspaceProps) {
+export default function LearningWorkspace({ videoId, youtubeVideoId, videoTitle, courseId, initialTab = "notes", savedOnly = false, onClose }: LearningWorkspaceProps) {
   const chatEnabled = useVideoChat();
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [notesOpened, setNotesOpened] = useState(initialTab === "notes");
   const [chatOpened, setChatOpened] = useState(initialTab === "chat");
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
-  const [aiContent, setAiContent] = useState<{
-    summary: StudySummary;
-    quiz: QuizPayload;
-  } | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  const [aiContent, setAiContent] = useState<AiContent | null>(null);
+  const [aiLoading, setAiLoading] = useState(initialTab === "summary" || initialTab === "quiz");
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiError, setAiError] = useState("");
+  const [reload, setReload] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const noteEditor = useRef<NoteEditorHandle>(null);
+  const lifetime = useRef<AbortController | null>(null);
+  const changing = useRef(false);
+  const generationInFlight = useRef(false);
 
-  const fetchAiContent = useCallback(() => {
-    if (aiLoading || aiGenerating) return;
-    setAiError(null);
-    setAiLoading(true);
-    fetch(`/api/videos/${videoId}/ai-content`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Could not load AI content");
-        return res.json();
-      })
-      .then((data) => {
-        if (data && data.summary && data.quiz) {
-          setAiContent({ summary: data.summary, quiz: data.quiz });
-          setAiError(null);
-        } else if (data?.error) {
-          setAiError(data.error);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch AI content:", err);
-        setAiError("Could not load AI content. Please try again.");
-      })
-      .finally(() => setAiLoading(false));
-  }, [videoId, aiLoading, aiGenerating]);
-
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up polling on unmount
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    const element = dialog.current;
+    const controller = new AbortController();
+    lifetime.current = controller;
+    element?.showModal();
+    document.body.style.overflow = "hidden";
     return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
+      controller.abort();
+      element?.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, []);
 
-  const handleGenerateAi = useCallback(async () => {
-    if (aiGenerating || !youtubeVideoId) return;
-    setAiError(null);
-    setAiGenerating(true);
-    try {
-      const res = await fetch("/api/ai/content", {
-        method: "POST",
-        signal: AbortSignal.timeout(100_000),
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtubeVideoId, courseId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not start AI generation");
-      if (data.status === "ready" && data.summary && data.quiz) {
-        setAiContent({ summary: data.summary, quiz: data.quiz });
-        setAiError(null);
-        setAiGenerating(false);
-      } else if (data.status === "pending") {
-        let attempts = 0;
-        let inFlight = false;
-        // Poll for completion — interval stored in ref so it can be cleaned up
-        pollRef.current = setInterval(async () => {
-          if (inFlight) return;
-          try {
-            if (++attempts > 30) throw new Error("Still processing. Please try again in a moment.");
-            inFlight = true;
-            const pollRes = await fetch("/api/ai/content", {
-              method: "POST",
-              signal: AbortSignal.timeout(100_000),
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ youtubeVideoId, courseId }),
-            });
-            const pollData = await pollRes.json();
-            if (!pollRes.ok) throw new Error(pollData.error ?? "Could not check AI generation");
-            if (pollData.status === "ready" && pollData.summary && pollData.quiz) {
-              setAiContent({ summary: pollData.summary, quiz: pollData.quiz });
-              setAiError(null);
-              if (pollRef.current) clearInterval(pollRef.current);
-              pollRef.current = null;
-              setAiGenerating(false);
-            } else if (pollData.status !== "pending") {
-              if (pollRef.current) clearInterval(pollRef.current);
-              pollRef.current = null;
-              setAiError(aiErrorMessage(pollData.reason));
-              setAiGenerating(false);
-            }
-          } catch (err) {
-            console.error("AI generation poll error:", err);
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
-            setAiError(err instanceof Error ? err.message : "AI generation failed. Please try again.");
-            setAiGenerating(false);
-          } finally {
-            inFlight = false;
-          }
-        }, 3000);
-        return; // Don't set aiGenerating false yet — poll handles it
-      } else {
-        setAiError(aiErrorMessage(data.reason));
-      }
-    } catch (err) {
-      console.error("AI generation request error:", err);
-      setAiError("Could not start AI generation. Please try again.");
-    }
-    setAiGenerating(false);
-  }, [youtubeVideoId, courseId, aiGenerating]);
-
-  // Fetch AI content once — shared across Summary and Quiz tabs
   useEffect(() => {
-    if (initialTab === "summary" || initialTab === "quiz") {
-      fetchAiContent();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId, initialTab]);
-
-  // Lazy-fetch AI content when switching to summary or quiz tab if not loaded
-  const handleTabChange = useCallback(
-    (tab: TabId) => {
-      if (tab === "chat") setChatOpened(true);
-      setActiveTab(tab);
-      if ((tab === "summary" || tab === "quiz") && !aiContent && !aiLoading && !aiGenerating) {
-        fetchAiContent();
+    if (activeTab !== "summary" && activeTab !== "quiz") return;
+    const controller = new AbortController();
+    fetch(`/api/videos/${encodeURIComponent(videoId)}/ai-content`, {
+      cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("Could not load saved study material. Please retry.");
+      return response.json();
+    }).then((data) => {
+      if (controller.signal.aborted) return;
+      setAiContent(data.summary || data.quiz ? { summary: data.summary, quiz: data.quiz } : null);
+      setAiLoading(false);
+    }).catch((error) => {
+      if (!controller.signal.aborted) {
+        setAiLoading(false);
+        setAiError(error.name === "TimeoutError" ? "Loading took too long. Please retry." : error.message);
       }
-    },
-    [fetchAiContent, aiContent, aiLoading, aiGenerating]
-  );
+    });
+    return () => controller.abort();
+  }, [activeTab, videoId, reload]);
 
-  const aiReady = aiContent !== null;
-  const quizCount = aiContent?.quiz.questions.length ?? 0;
+  async function transition(next?: LearningResourceType) {
+    if (changing.current || next === activeTab) return;
+    changing.current = true;
+    setTransitioning(true);
+    try {
+      if (activeTab === "notes" && noteEditor.current) {
+        if (!await noteEditor.current.flushAndSave({ allowEmpty: true })) return;
+      }
+      if (!next) { onClose(); return; }
+      if (next === "notes") setNotesOpened(true);
+      if (next === "chat") setChatOpened(true);
+      if ((next === "summary" || next === "quiz") && !aiContent) {
+        setAiLoading(true); setAiError("");
+      }
+      setActiveTab(next);
+    } finally {
+      changing.current = false;
+      setTransitioning(false);
+    }
+  }
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className={`w-full max-w-4xl min-h-0 flex flex-col rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl overflow-hidden ${activeTab === "chat" ? "h-[min(820px,calc(100dvh-48px))] max-h-[calc(100dvh-24px)]" : "max-h-[85dvh]"}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={activeTab === "chat" ? `Ask AI about ${videoTitle}` : videoTitle}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Header ─────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-zinc-800 shrink-0 sm:px-7">
-          <div className="min-w-0 flex-1">
-            <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">
-              {activeTab === "chat" ? "Ask AI" : "Learning"}
-            </span>
-            {activeTab !== "chat" && <p className="text-[11px] text-zinc-500 mt-0.5">Everything you need to master this video.</p>}
-            <h2 className="text-sm font-medium text-zinc-100 truncate mt-0.5">
-              {videoTitle}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 ml-3 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  async function generate() {
+    if (savedOnly || generationInFlight.current || !youtubeVideoId) return;
+    generationInFlight.current = true;
+    setAiGenerating(true); setAiError("");
+    const signal = lifetime.current!.signal;
+    try {
+      for (let attempt = 0; attempt <= 30; attempt++) {
+        if (signal.aborted) return;
+        const response = await fetch("/api/ai/content", {
+          method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(100000)]),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ youtubeVideoId, courseId }),
+        });
+        const data = await response.json();
+        if (signal.aborted) return;
+        if (!response.ok) throw new Error("Could not prepare study material. Please try again.");
+        if (data.status === "ready" && data.summary && data.quiz) {
+          setAiContent({ summary: data.summary, quiz: data.quiz }); return;
+        }
+        if (data.status !== "pending") throw new Error(aiErrorMessage(data.reason));
+        if (attempt === 30) throw new Error("Still processing. Please try again in a moment.");
+        await new Promise<void>((resolve) => {
+          const finish = () => { clearTimeout(timer); signal.removeEventListener("abort", finish); resolve(); };
+          const timer = setTimeout(finish, 3000);
+          signal.addEventListener("abort", finish, { once: true });
+        });
+      }
+    } catch (error) {
+      if (!signal.aborted) setAiError(error instanceof Error && error.name !== "TimeoutError" ? error.message : "The request took too long. Please retry.");
+    } finally {
+      generationInFlight.current = false;
+      if (!signal.aborted) { setAiGenerating(false); setAiLoading(false); }
+    }
+  }
 
-        {/* ── Tab bar ────────────────────────────────────────────────── */}
-        <TabBar
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          aiReady={aiReady}
-          quizCount={quizCount}
-          chatEnabled={chatEnabled}
-        />
+  const aiTab = activeTab === "summary" || activeTab === "quiz";
+  const hasResource = activeTab === "summary" ? Boolean(aiContent?.summary) : Boolean(aiContent?.quiz);
 
-        {/* ── Tab content ────────────────────────────────────────────── */}
-        <div className={`min-h-0 flex-1 ${activeTab === "chat" ? "grid grid-rows-[minmax(0,1fr)] overflow-hidden" : "overflow-y-auto"}`}>
-          {chatEnabled && chatOpened && <div className="min-h-0" hidden={activeTab !== "chat"}><VideoChat key={videoId} videoId={videoId} /></div>}
-          {activeTab === "notes" && (
-            <div className="p-5">
-              <NoteEditor videoId={videoId} />
-            </div>
-          )}
-
-          {activeTab === "summary" &&
-            (aiLoading && !aiGenerating ? (
-              <LoadingSkeleton />
-            ) : aiContent ? (
-              <SummaryTab summary={aiContent.summary} />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Sparkles className="w-8 h-8 text-zinc-600 mb-3" />
-                <p className="text-zinc-500 text-sm max-w-xs">
-                  {aiGenerating
-                    ? "Preparing your study material."
-                    : aiError
-                      ? aiError
-                      : "This video doesn't have AI content yet."}
-                </p>
-                {aiGenerating ? (
-                  <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                    <AiGenerationProgress key={videoId} videoId={videoId} />
-                  </div>
-                ) : (
-                  <>
-                    {aiError && (
-                      <p className="mt-2 text-xs text-red-400 max-w-xs">{aiError}</p>
-                    )}
-                    <button
-                      onClick={handleGenerateAi}
-                      disabled={!youtubeVideoId}
-                      className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {aiError ? "Retry" : "Generate AI Content"}
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-
-          {activeTab === "quiz" &&
-            (aiLoading && !aiGenerating ? (
-              <LoadingSkeleton />
-            ) : aiContent ? (
-              <QuizTab quiz={aiContent.quiz} />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Brain className="w-8 h-8 text-zinc-600 mb-3" />
-                <p className="text-zinc-500 text-sm max-w-xs">
-                  {aiGenerating
-                    ? "Preparing your study material."
-                    : aiError
-                      ? aiError
-                      : "This video doesn't have AI content yet."}
-                </p>
-                {aiGenerating ? (
-                  <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                    <AiGenerationProgress key={videoId} videoId={videoId} />
-                  </div>
-                ) : (
-                  <>
-                    {aiError && (
-                      <p className="mt-2 text-xs text-red-400 max-w-xs">{aiError}</p>
-                    )}
-                    <button
-                      onClick={handleGenerateAi}
-                      disabled={!youtubeVideoId}
-                      className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {aiError ? "Retry" : "Generate AI Content"}
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-        </div>
-
-        {/* ── Footer ─────────────────────────────────────────────────── */}
-        {activeTab !== "chat" && <div className="flex items-center justify-end px-5 py-4 border-t border-zinc-800 shrink-0">
-          <button
-            onClick={onClose}
-            className="rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-5 py-2 text-sm font-semibold text-white transition-colors"
-          >
-            Close
-          </button>
-        </div>}
+  return <dialog ref={dialog} className={styles.dialog} aria-labelledby="study-workspace-title"
+    onKeyDown={(event) => {
+      if (event.key !== "Tab" || event.defaultPrevented) return;
+      const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')].filter((control) => control.getClientRects().length && !control.closest("[inert]"));
+      const first = controls[0], last = controls[controls.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }}
+    onCancel={(event) => { event.preventDefault(); void transition(); }} onClick={(event) => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) void transition(); } }}>
+    <div className={styles.frame}>
+      <header className={styles.header}><div><span>{activeTab === "chat" ? "ASK THIS VIDEO" : "STUDY WORKSPACE"}</span><h2 id="study-workspace-title">{videoTitle}</h2></div><button aria-label="Close study workspace" disabled={transitioning} onClick={() => void transition()}><X size={19} /></button></header>
+      <div className={styles.tabs} role="group" aria-label="Study tools">{tabs.filter((tab) => tab.id !== "chat" || chatEnabled).map(({ id, label, icon: Icon }) => <button key={id} aria-pressed={activeTab === id} disabled={transitioning} onClick={() => void transition(id)}><Icon size={15} aria-hidden="true" />{label}</button>)}</div>
+      <div className={`${styles.body} ${activeTab === "chat" ? styles.chatBody : ""}`}>
+        {notesOpened && <div className={styles.note} hidden={activeTab !== "notes"}><NoteEditor ref={noteEditor} videoId={videoId} /></div>}
+        {chatEnabled && chatOpened && <div className={styles.chat} hidden={activeTab !== "chat"}><VideoChat key={videoId} videoId={videoId} /></div>}
+        {aiTab && (aiLoading && !aiContent ? <div className={styles.loading} role="status">Loading your saved material…</div>
+          : hasResource ? activeTab === "summary" && aiContent?.summary ? <div className={styles.summary}><p className={styles.hook}>{aiContent.summary.hook}</p><h3>KEY TAKEAWAYS</h3><ol>{aiContent.summary.keyPoints.map((point, index) => <li key={index}><span>{index + 1}</span><p>{point}</p></li>)}</ol></div> : <div className={styles.quiz}><QuizPlayer questions={aiContent!.quiz!.questions} resetLabel="Reset" /></div>
+          : <div className={styles.empty}><Sparkles size={27} aria-hidden="true" /><h3>{aiGenerating ? "Preparing your study material" : "No saved material available"}</h3><p role={aiError ? "alert" : undefined}>{aiError || "This resource may have been removed or needs to be generated from its course."}</p>{aiGenerating ? <AiGenerationProgress videoId={videoId} /> : <><button onClick={() => { setAiError(""); setAiLoading(true); setReload((value) => value + 1); }}>Retry loading</button>{savedOnly ? <Link href={`/courses/${encodeURIComponent(courseId)}`}>Open course</Link> : <button disabled={!youtubeVideoId} onClick={() => void generate()}>Generate AI content</button>}</>}</div>)}
       </div>
+      <footer className={styles.footer}><span>{transitioning ? "Saving your changes…" : activeTab === "notes" ? "Your notes save as you write." : "A little review goes a long way."}</span><button disabled={transitioning} onClick={() => void transition()}>{transitioning ? "Saving…" : "Done"}</button></footer>
     </div>
-  );
+  </dialog>;
 }

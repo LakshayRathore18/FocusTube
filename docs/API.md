@@ -31,11 +31,22 @@ Authenticated endpoints require the opaque `focustube_session` cookie. Mutations
 | GET | `/api/notes` | Personal notes with video/course metadata |
 | GET | `/api/notes/overview` | Course library aggregates |
 | GET | `/api/notes/{courseId}?tab=personal\|ai` | Course resources; default personal; invalid tab 400 |
+| GET | `/api/study-library` | Owned saved resources with search, filters, counts and pagination; see below |
 | GET | `/api/stats/learning` | `{totalPlaylists,totalVideos,completedVideos,personalNotes,aiSummaries}` |
 | GET | `/api/stats/weekly` | Weekly completion/watch duration and total completion counts |
 | POST | `/api/ai/content` | `{youtubeVideoId,courseId?}`; ready, pending, or failed result |
 
 Video status is `not_started`, `in_progress`, or `completed`. `lastWatchedSeconds` accepts an integer from 0 to 2,147,483,647 or null to clear it. At least one update field is required; explicit null status is invalid. Dates use JSON datetime serialization and nullable fields remain null.
+
+## Study Library
+
+`GET /api/study-library` accepts `q` (up to 200 characters), `type=all|notes|summary|quiz`, optional `courseId`, `sort=recent|oldest|title`, `page` (minimum 1), and `pageSize` (default 24, maximum 100). Invalid values return 400. A course filter is ownership-checked (403 for another user's course, 404 for a missing course).
+
+Response: `{items,total,resourceTotal,counts,courses,page,pageSize}`. Each item contains `{id,type,videoId,youtubeVideoId,videoTitle,courseId,courseTitle,preview,updatedAt,isAvailable}`. IDs combine the owned video ID and resource type. `total` counts matches after all filters; `resourceTotal` counts the entire owned library. `counts` contains `{all,notes,summary,quiz}` after search/course filtering and before the type filter. `courses` lists owned course IDs/titles. Out-of-range pages clamp to the final page.
+
+Search is case-insensitive literal substring matching over lesson/course titles, visible personal-note text, and summary hooks/key points. Quiz questions/answers are neither searched nor included in library metadata. Note HTML is converted to plain text; scripts/styles are excluded. Previews are limited to 180 characters. Recent/oldest ordering uses the note update date or the later AI update/video-unlock date, with stable resource-ID tie-breaking.
+
+The endpoint reads existing records without generating or unlocking AI content. Only ready, unlocked AI resources for owned videos are included. Saved resources remain available when their video is archived. The initial implementation normalizes and filters owned resource text in the backend before pagination; it is not an indexed full-text search service.
 
 ## AI responses
 

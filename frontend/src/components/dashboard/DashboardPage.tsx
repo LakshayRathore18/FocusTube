@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "@/components/auth/AuthProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Play, Book, FileText, Sparkles, Clock, Plus } from "lucide-react";
-import { formatTimeAgo } from "@/lib/utils";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import Image from "next/image";
+import { ArrowRight, ArrowUpRight, BookOpen, Check, CircleCheck, Clock3, FileText, Link2, LoaderCircle, Play, Plus, Sparkles, SquarePlay } from "lucide-react";
+import { formatDuration, formatTimeAgo } from "@/lib/utils";
+import styles from "./DashboardPage.module.css";
 
 type ContinueVideo = {
   id: string;
@@ -20,7 +20,6 @@ type ContinueVideo = {
   updatedAt: string;
   course: { id: string; title: string };
 };
-
 type LearningStats = {
   totalPlaylists: number;
   totalVideos: number;
@@ -29,333 +28,174 @@ type LearningStats = {
   aiSummaries: number;
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good Morning";
-  if (hour < 17) return "Good Afternoon";
-  return "Good Evening";
-}
-
-function getMotivationalLine(): string {
-  const lines = [
-    "Continue where you left off.",
-    "Ready for another learning session?",
-    "Pick up where you stopped.",
-    "One more video today?",
-    "Keep the momentum going.",
-  ];
-  return lines[Math.floor(Math.random() * lines.length)];
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Continue Learning — Compact Horizontal Card
-// ═══════════════════════════════════════════════════════════════════════════
-
-function ContinueLearning({ video }: { video: ContinueVideo | null }) {
-  if (!video) return null;
-
-  const progress = video.durationSeconds && video.lastWatchedSeconds
-    ? Math.min(100, Math.round((video.lastWatchedSeconds / video.durationSeconds) * 100))
-    : 0;
-
+function ContinueLearning({ video, loading }: { video: ContinueVideo | null; loading: boolean }) {
+  const progress = video?.durationSeconds
+    ? Math.min(100, Math.max(0, Math.round(((video.lastWatchedSeconds ?? 0) / video.durationSeconds) * 100))) : 0;
   return (
-    <section className="mb-8">
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-        Continue Learning
-      </h2>
-      <div className="flex items-center gap-4 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 hover:shadow-md transition-shadow">
-        {/* Thumbnail — fixed 180px width, 16:9 ratio */}
-        <div className="relative w-[180px] shrink-0 aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-zinc-800">
-          {video.thumbnailUrl && (
-            <img
-              src={video.thumbnailUrl}
-              alt={video.title}
-              className="w-full h-full object-cover"
-            />
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">
-            {video.course.title}
-          </p>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate mt-0.5">
-            {video.title}
-          </h3>
-
-          {/* Progress */}
-          {progress > 0 && (
-            <div className="mt-2 max-w-[200px]">
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span className="text-gray-400 dark:text-gray-500">{progress}%</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-zinc-700 rounded-full h-1 overflow-hidden">
-                <div className="bg-amber-500 h-full rounded-full" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Resume Button */}
-        <Link
-          href={`/courses/${video.course.id}`}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 px-4 py-2 text-xs font-semibold text-white transition-colors"
-        >
-          <Play className="w-3.5 h-3.5" fill="currentColor" />
-          Resume
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Recently Watched — max 4 items
-// ═══════════════════════════════════════════════════════════════════════════
-
-function RecentlyWatched({ videos }: { videos: ContinueVideo[] }) {
-  if (videos.length === 0) return null;
-
-  return (
-    <section className="mb-8">
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-        Recently Watched
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {videos.slice(0, 4).map((video) => (
-          <Link
-            key={video.id}
-            href={`/courses/${video.course.id}`}
-            className="group flex gap-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 transition-all"
-          >
-            <div className="relative w-[88px] shrink-0 aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-zinc-800">
-              {video.thumbnailUrl && (
-                <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
-              )}
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="w-7 h-7 rounded-full bg-red-600 flex items-center justify-center">
-                  <Play className="w-3.5 h-3.5 text-white ml-0.5" fill="currentColor" />
-                </div>
-              </div>
-            </div>
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <h3 className="text-xs font-medium text-gray-900 dark:text-white leading-snug line-clamp-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                {video.title}
-              </h3>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 truncate">
-                {video.course.title}
-              </p>
-              <div className="flex items-center gap-1 mt-1">
-                <Clock className="w-2.5 h-2.5 text-gray-400" />
-                <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                  {formatTimeAgo(video.updatedAt)}
-                </span>
-              </div>
-            </div>
+    <section aria-labelledby="continue-heading">
+      <div className={styles.sectionHeading}><h2 id="continue-heading">Pick up where you left off</h2><span className={styles.eyebrow}>CONTINUE LEARNING</span></div>
+      {loading ? <div className={`${styles.skeleton} ${styles.heroSkeleton}`} role="status" aria-label="Loading your next lesson" /> : video ? (
+        <article className={styles.continueCard}>
+          <Link href={`/courses/${video.course.id}`} className={styles.heroImage} aria-label={`Continue ${video.title}`}>
+            {video.thumbnailUrl ? <Image src={video.thumbnailUrl} alt="" fill sizes="(max-width: 600px) 100vw, 680px" className={styles.thumbnail} /> : <BookOpen size={56} aria-hidden="true" />}
+            <span className={styles.imageShade} />
+            <span className={styles.resumePill}><span /> IN PROGRESS</span>
+            <span className={styles.playCircle}><Play size={25} fill="currentColor" aria-hidden="true" /></span>
+            {video.durationSeconds ? <span className={styles.duration}>{formatDuration(video.durationSeconds)}</span> : null}
           </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Quick Stats
-// ═══════════════════════════════════════════════════════════════════════════
-
-function QuickStats({ stats }: { stats: LearningStats | null }) {
-  if (!stats) return null;
-
-  const items = [
-    { icon: <Book className="w-4 h-4" />, label: "Playlists", value: stats.totalPlaylists },
-    { icon: <Play className="w-4 h-4" />, label: "Videos Done", value: `${stats.completedVideos} / ${stats.totalVideos}` },
-    { icon: <FileText className="w-4 h-4" />, label: "Notes", value: stats.personalNotes },
-    { icon: <Sparkles className="w-4 h-4" />, label: "AI Summaries", value: stats.aiSummaries },
-  ];
-
-  return (
-    <section className="mb-8">
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-        Overview
-      </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {items.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-xl border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 text-gray-500 dark:text-gray-400">
-                {item.icon}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  {item.label}
-                </p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">
-                  {item.value}
-                </p>
-              </div>
+          <div className={styles.heroBody}>
+            <p className={styles.courseLabel}>{video.course.title}</p><h3>{video.title}</h3>
+            <div className={styles.lessonProgress}><div><span>Your progress</span><strong>{progress}%</strong></div><progress value={progress} max={100} aria-label="Current video progress" /></div>
+            <div className={styles.heroFooter}>
+              <Link href={`/courses/${video.course.id}`} className={styles.primaryButton}><Play size={15} fill="currentColor" aria-hidden="true" /> Continue learning <ArrowRight size={16} aria-hidden="true" /></Link>
+              <span className={styles.savedPosition}><Check size={14} aria-hidden="true" /> Progress saved</span>
             </div>
           </div>
-        ))}
-      </div>
+        </article>
+      ) : (
+        <div className={styles.emptyCard}>
+          <span className={styles.emptyIcon}><Play size={24} aria-hidden="true" /></span><h3>Your next lesson is waiting.</h3>
+          <p>Open a course and start a video. You can pick it up here next time.</p>
+          <Link href="/courses" className={styles.primaryButton}>Explore your courses <ArrowRight size={16} aria-hidden="true" /></Link>
+        </div>
+      )}
     </section>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Import Playlist
-// ═══════════════════════════════════════════════════════════════════════════
+function QuickStats({ stats, loading }: { stats: LearningStats | null; loading: boolean }) {
+  const items = [
+    { icon: BookOpen, label: "Your courses", value: stats?.totalPlaylists, detail: "Playlists in your library", color: "violet" },
+    { icon: CircleCheck, label: "Lessons completed", value: stats?.completedVideos, detail: stats ? `of ${stats.totalVideos} total lessons` : "Across your courses", color: "green" },
+    { icon: FileText, label: "Personal notes", value: stats?.personalNotes, detail: "Ideas worth keeping", color: "blue" },
+    { icon: Sparkles, label: "AI summaries", value: stats?.aiSummaries, detail: "Ready for a quick recap", color: "amber" },
+  ];
+  return (
+    <section className={styles.statsGrid} aria-label="Your learning at a glance" aria-busy={loading}>
+      {items.map(({ icon: Icon, label, value, detail, color }) => (
+        <div className={styles.statCard} key={label}>
+          <div className={styles.statTop}><span className={styles.statLabel}>{label}</span><span className={styles.statIcon} data-color={color}><Icon size={17} aria-hidden="true" /></span></div>
+          <p className={styles.statValue}>{loading ? <span className={styles.numberSkeleton} /> : value?.toLocaleString() ?? "—"}</p><p className={styles.statDetail}>{detail}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function RecentlyWatched({ videos, loading }: { videos: ContinueVideo[]; loading: boolean }) {
+  return (
+    <section aria-labelledby="recent-heading" className={styles.recentSection}>
+      <div className={styles.sectionHeading}><h2 id="recent-heading">Recently watched</h2><Link href="/courses" className={styles.textLink}>All courses <ArrowUpRight size={14} aria-hidden="true" /></Link></div>
+      {loading ? <div className={`${styles.skeleton} ${styles.recentSkeleton}`} role="status" aria-label="Loading recent lessons" /> : videos.length ? (
+        <div className={styles.recentList}>{videos.slice(0, 4).map((video) => (
+          <Link key={video.id} href={`/courses/${video.course.id}`} className={styles.recentItem}>
+            <div className={styles.recentImage}>{video.thumbnailUrl ? <Image src={video.thumbnailUrl} alt="" fill sizes="96px" className={styles.thumbnail} /> : <Play size={22} aria-hidden="true" />}</div>
+            <div className={styles.recentInfo}><p>{video.course.title}</p><h3>{video.title}</h3><span><Clock3 size={12} aria-hidden="true" /> {formatTimeAgo(video.updatedAt)}</span></div>
+            <ArrowUpRight size={17} className={styles.recentArrow} aria-hidden="true" />
+          </Link>
+        ))}</div>
+      ) : <div className={styles.recentEmpty}><Clock3 size={20} aria-hidden="true" /><p>Your recently watched lessons will appear here.</p></div>}
+    </section>
+  );
+}
 
 function ImportPlaylist() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const handleImport = useCallback(async (e: React.FormEvent) => {
+  async function handleImport(e: React.FormEvent) {
     e.preventDefault();
+    if (!url.trim() || importing) return;
     setError(null);
     setImporting(true);
-
     try {
-      const res = await fetch("/api/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-
-      let data: Record<string, unknown>;
-      try { data = await res.json(); } catch {
-        const text = await res.text().catch(() => "");
-        setError(text ? `Server error: ${text.slice(0, 200)}` : "Server returned an invalid response");
-        setImporting(false);
+      const res = await fetch("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: url.trim() }) });
+      const data = await res.json().catch(() => null);
+      if ((res.ok || res.status === 409) && typeof data?.courseId === "string") {
+        router.push(`/courses/${data.courseId}`);
         return;
       }
-
-      if (!res.ok) {
-        if (res.status === 409 && data.courseId) {
-          router.push(`/courses/${data.courseId}`);
-          return;
-        }
-        setError((data.error as string) ?? "Failed to import playlist");
-        return;
-      }
-
-      router.push(`/courses/${data.courseId}`);
+      setError(typeof data?.error === "string" ? data.error : "Could not import this playlist. Please try again.");
     } catch {
-      setError("Network error — please try again");
+      setError("Could not connect. Check your connection and try again.");
     } finally {
       setImporting(false);
     }
-  }, [url, router]);
-
+  }
   return (
-    <section>
-      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-        Import Playlist
-      </h2>
+    <section className={styles.importCard} id="dashboard-import" aria-labelledby="import-heading">
+      <div className={styles.importTop}><span className={styles.youtubeIcon}><SquarePlay size={25} aria-hidden="true" /></span><span className={styles.eyebrow}>A NEW CHAPTER</span></div>
+      <h2 id="import-heading">Curiosity looks<br />good on you.</h2><p>Turn a YouTube playlist into your next course. One link is all it takes.</p>
       <form onSubmit={handleImport}>
-        <div className="flex gap-3">
-          <input
-            id="playlist-url"
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste a YouTube playlist URL or ID..."
-            className="flex-1 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={importing}
-          />
-          <button
-            type="submit"
-            disabled={importing || !url.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {importing ? "Importing..." : "Import"}
-          </button>
-        </div>
-        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+        <label htmlFor="playlist-url">YouTube playlist URL or ID</label>
+        <div className={styles.inputWrap}><Link2 size={16} aria-hidden="true" /><input id="playlist-url" type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste your playlist link…" disabled={importing} aria-describedby={error ? "import-error" : undefined} aria-invalid={!!error} autoComplete="off" /></div>
+        <button type="submit" className={styles.primaryButton} disabled={importing || !url.trim()}>{importing ? <LoaderCircle size={16} className={styles.spinner} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{importing ? "Importing playlist…" : "Import playlist"}</button>
+        {error && <p id="import-error" className={styles.importError} role="alert">{error}</p>}
+        <p className={styles.importHint} role="status">{importing ? "Fetching the lessons in your playlist. Hang tight." : "Your videos, notes, and progress. In one place."}</p>
       </form>
     </section>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Main Dashboard
-// ═══════════════════════════════════════════════════════════════════════════
+function LearningProgress({ stats }: { stats: LearningStats | null }) {
+  if (!stats) return null;
+  const pct = stats.totalVideos ? Math.min(100, Math.round(stats.completedVideos / stats.totalVideos * 100)) : 0;
+  return (
+    <section className={styles.progressCard} aria-labelledby="progress-heading">
+      <div className={styles.sectionHeading}><h2 id="progress-heading">Small steps add up.</h2><CircleCheck size={18} aria-hidden="true" /></div>
+      <div className={styles.progressContent}>
+        <div className={styles.progressRing}><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" /><circle cx="50" cy="50" r="42" pathLength="100" strokeDasharray={`${pct} 100`} /></svg><strong>{pct}<span>%</span></strong></div>
+        <div><strong>{stats.completedVideos} lessons down</strong><p>Every lesson brings you<br />a little further.</p></div>
+      </div>
+      <Link href="/study-library" className={styles.progressLink}>Revisit your notes & summaries <ArrowRight size={15} aria-hidden="true" /></Link>
+    </section>
+  );
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [continueVideo, setContinueVideo] = useState<ContinueVideo | null>(null);
   const [recentVideos, setRecentVideos] = useState<ContinueVideo[]>([]);
   const [stats, setStats] = useState<LearningStats | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  const loadDashboard = useCallback(() => {
-    setFetchError(null);
-    fetch("/api/videos/continue-watching")
-      .then((res) => res.json())
-      .then((data) => { if (Array.isArray(data) && data.length > 0) setContinueVideo(data[0]); })
-      .catch((err) => { console.error("Failed to load continue-watching:", err); setFetchError("Could not load dashboard data."); });
-
-    fetch("/api/videos/recently-watched")
-      .then((res) => res.json())
-      .then((data) => { if (Array.isArray(data)) setRecentVideos(data); })
-      .catch((err) => { console.error("Failed to load recently watched:", err); setFetchError("Could not load dashboard data."); });
-
-    fetch("/api/stats/learning")
-      .then((res) => res.json())
-      .then((data) => { if (data && typeof data.totalPlaylists === "number") setStats(data); })
-      .catch((err) => { console.error("Failed to load stats:", err); setFetchError("Could not load dashboard data."); });
-  }, []);
-
+  const [fetchError, setFetchError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
-
-  const greeting = getGreeting();
-  const line = getMotivationalLine();
-  const userName = session?.user?.name ?? null;
-
+    const controller = new AbortController();
+    async function load() {
+      setLoading(true);
+      setFetchError(false);
+      async function read(path: string) {
+        const res = await fetch(path, { signal: controller.signal });
+        if (!res.ok) throw new Error("Dashboard request failed");
+        return res.json();
+      }
+      const results = await Promise.allSettled([read("/api/videos/continue-watching"), read("/api/videos/recently-watched"), read("/api/stats/learning")]);
+      if (controller.signal.aborted) return;
+      const [continued, recent, overview] = results;
+      if (continued.status === "fulfilled" && Array.isArray(continued.value)) setContinueVideo(continued.value.find((video: ContinueVideo) => video.isAvailable) ?? null);
+      if (recent.status === "fulfilled" && Array.isArray(recent.value)) setRecentVideos(recent.value);
+      if (overview.status === "fulfilled" && typeof overview.value?.totalPlaylists === "number") setStats(overview.value);
+      setFetchError(results.some((result) => result.status === "rejected"));
+      setLoading(false);
+    }
+    void load();
+    return () => controller.abort();
+  }, [attempt]);
+  const firstName = session?.user?.name?.trim().split(/\s+/)[0] || "Learner";
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 pb-10">
-      {/* Greeting — compact */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-          {greeting}, {userName ?? "Learner"} 👋
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{line}</p>
+    <div className={styles.dashboard}><div className={styles.pageInner}>
+      <header className={styles.welcome}>
+        <div><p className={styles.kicker}><span /> YOUR LEARNING SPACE</p><h1>Welcome back, {firstName}<span className={styles.headingDot}>.</span></h1><p>A little focus today. A little further tomorrow.</p></div>
+        <Link href="/courses" className={styles.browseButton}>Your course library <ArrowUpRight size={16} aria-hidden="true" /></Link>
+      </header>
+      {fetchError && <div className={styles.errorBanner} role="alert"><p>Some of your learning data could not be loaded.</p><button onClick={() => setAttempt((value) => value + 1)} disabled={loading}>{loading ? "Loading…" : "Try again"}</button></div>}
+      <QuickStats stats={stats} loading={loading} />
+      <div className={styles.contentGrid}>
+        <div className={styles.mainColumn}><ContinueLearning video={continueVideo} loading={loading} /><RecentlyWatched videos={recentVideos} loading={loading} /></div>
+        <aside className={styles.sideColumn} aria-label="Grow your learning"><ImportPlaylist /><LearningProgress stats={stats} /><p className={styles.footerNote}><Sparkles size={14} aria-hidden="true" /> Make time for what interests you.</p></aside>
       </div>
-
-      {/* Error banner */}
-      {fetchError && (
-        <div className="mb-6 flex items-center justify-between rounded-xl border border-red-700/50 bg-red-900/20 p-4">
-          <p className="text-sm text-red-400">{fetchError}</p>
-          <button
-            onClick={loadDashboard}
-            className="rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Continue Learning */}
-      <ContinueLearning video={continueVideo} />
-
-      {/* Recently Watched */}
-      <RecentlyWatched videos={recentVideos} />
-
-      {/* Quick Statistics */}
-      <QuickStats stats={stats} />
-
-      {/* Import Playlist */}
-      <ImportPlaylist />
-    </div>
+    </div></div>
   );
 }

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
@@ -59,6 +60,41 @@ class Quiz(Schema):
 class GeneratedNotes(Schema):
     summary: StudySummary
     quiz: Quiz
+
+
+class LibraryResource(Schema):
+    id: str
+    type: Literal["notes", "summary", "quiz"]
+    video_id: str
+    youtube_video_id: str
+    video_title: str
+    course_id: str
+    course_title: str
+    preview: str
+    updated_at: datetime
+    is_available: bool
+
+
+class LibraryCounts(Schema):
+    all: int = 0
+    notes: int = 0
+    summary: int = 0
+    quiz: int = 0
+
+
+class LibraryCourse(Schema):
+    id: str
+    title: str
+
+
+class StudyLibrary(Schema):
+    items: list[LibraryResource]
+    total: int
+    resource_total: int
+    counts: LibraryCounts
+    courses: list[LibraryCourse]
+    page: int
+    page_size: int
 
 
 def serialize(row, *, only: list[str] | None = None) -> dict:

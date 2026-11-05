@@ -16,7 +16,7 @@ import {
   RemoveFormatting,
 } from "lucide-react";
 
-import { getPlainText, isNoteContentEmpty as isEditorContentEmpty, formatTimeAgo as formatTimeAgoUtil } from "@/lib/utils";
+import { isNoteContentEmpty as isEditorContentEmpty, formatTimeAgo as formatTimeAgoUtil } from "@/lib/utils";
 
 // ─── Toast ──────────────────────────────────────────────────────────────────
 
@@ -87,11 +87,10 @@ function SaveIndicator({ state, lastSaved }: { state: SaveState; lastSaved: Date
 // ─── NoteEditor component ────────────────────────────────────────────────────
 
 export type NoteEditorHandle = {
-  /** Force-save any pending changes immediately.
-   *  Returns `true` if the save (or delete) was performed, or `false` if
-   *  the content was empty and there was nothing to save — letting the
-   *  parent decide not to close the modal. */
-  flushAndSave: () => Promise<boolean>;
+  /** Flush pending edits before leaving. False keeps the editor open after a
+   *  failed save, cancelled deletion, or newer edit during a save. allowEmpty
+   *  lets the shared workspace close an untouched, empty note without saving. */
+  flushAndSave: (options?: { allowEmpty?: boolean }) => Promise<boolean>;
 };
 
 interface NoteEditorProps {
@@ -102,6 +101,8 @@ interface NoteEditorProps {
 const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   function NoteEditor({ videoId, onHasContentChange }, ref) {
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadRevision, setLoadRevision] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -109,11 +110,13 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialContentSet = useRef(false);
   const lastHtmlRef = useRef<string>("<p></p>");
+  const savedHtmlRef = useRef<string>("<p></p>");
   const hasExistingNoteRef = useRef(false);
   // Promise resolver for the delete confirmation dialog
   const deleteResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const confirmationRef = useRef<HTMLDivElement>(null);
   // Track the latest in-flight fetch so flushAndSave can await it
-  const savePromiseRef = useRef<Promise<void> | null>(null);
+  const savePromiseRef = useRef<Promise<boolean> | null>(null);
 
   const showToast = useCallback((text: string) => {
     const id = ++toastIdCounter;
@@ -123,29 +126,36 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     }, 3000);
   }, []);
 
-  const saveContent = useCallback((html: string): Promise<void> => {
+  const saveContent = useCallback((html: string): Promise<boolean> => {
     // Frontend guard: don't save empty content
     if (isEditorContentEmpty(html)) {
       setSaveState("idle");
-      return Promise.resolve();
+      return Promise.resolve(false);
     }
 
-    const promise = fetch(`/api/videos/${videoId}/notes`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: html }),
-    })
-      .then((res) => {
+    // Serialize writes: an older autosave must not overwrite a newer edit.
+    const promise = (savePromiseRef.current ?? Promise.resolve(true)).then(async () => {
+      setSaveState("saving");
+      try {
+        const res = await fetch(`/api/videos/${videoId}/notes`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: html }),
+          signal: AbortSignal.timeout(15000),
+        });
         if (!res.ok) throw new Error("Save failed");
+        savedHtmlRef.current = html;
         setSaveState("saved");
         setLastSaved(new Date());
         hasExistingNoteRef.current = true;
         // Immediately update the parent — notes button turns blue right away
         onHasContentChange?.(videoId, true);
-      })
-      .catch(() => {
+        return true;
+      } catch {
         setSaveState("error");
-      });
+        return false;
+      }
+    });
 
     savePromiseRef.current = promise;
     return promise;
@@ -155,9 +165,11 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     try {
       const res = await fetch(`/api/videos/${videoId}/notes`, {
         method: "DELETE",
+        signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) throw new Error("Delete failed");
       hasExistingNoteRef.current = false;
+      savedHtmlRef.current = "<p></p>";
       onHasContentChange?.(videoId, false);
       setSaveState("idle");
       setLastSaved(null);
@@ -169,6 +181,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   }, [videoId, onHasContentChange]);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
@@ -208,12 +221,14 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   useImperativeHandle(
     ref,
     () => ({
-      flushAndSave: async (): Promise<boolean> => {
+      flushAndSave: async (options): Promise<boolean> => {
         if (debounceRef.current) {
           clearTimeout(debounceRef.current);
           debounceRef.current = null;
         }
-        if (!editor) return true; // nothing to save, just close
+        if (!editor || !initialContentSet.current) return Boolean(options?.allowEmpty);
+        // Wait for older writes before comparing against the actual persisted HTML.
+        if (savePromiseRef.current) await savePromiseRef.current;
 
         const html = editor.getHTML();
         const isEmpty = isEditorContentEmpty(html);
@@ -233,19 +248,16 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             return false; // user cancelled — stay open
           }
           // No existing note and content is empty — nothing to save
+          if (options?.allowEmpty) return true;
           showToast("Write something before saving.");
           return false; // stay open
         }
 
         // Has content — save normally
-        if (html === lastHtmlRef.current && savePromiseRef.current) {
-          // Content unchanged & a save is already in flight — wait for it
-          await savePromiseRef.current;
-          return true;
-        }
-        setSaveState("saving");
-        await saveContent(html);
-        return true;
+        if (html === savedHtmlRef.current) return true;
+        const saved = await saveContent(html);
+        // Edits made during the request must stay open, ready for another save.
+        return saved && editor.getHTML() === savedHtmlRef.current;
       },
     }),
     [editor, saveContent, deleteNote, showToast],
@@ -253,9 +265,14 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
 
   // Fetch existing note on mount and set it once
   useEffect(() => {
-    fetch(`/api/videos/${videoId}/notes`)
-      .then((res) => res.json())
+    if (!editor || initialContentSet.current) return;
+    const controller = new AbortController();
+    fetch(`/api/videos/${videoId}/notes`, {
+      cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+    })
+      .then((res) => { if (!res.ok) throw new Error("Load failed"); return res.json(); })
       .then((data) => {
+        if (controller.signal.aborted) return;
         // Only process on the first successful fetch with editor ready.
         // Subsequent re-runs (due to onHasContentChange reference changing,
         // editor re-initialization, etc.) must NOT overwrite the state.
@@ -267,8 +284,9 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         if (data && data.content && editor) {
           initialContentSet.current = true;
           lastHtmlRef.current = data.content;
+          savedHtmlRef.current = data.content;
           hasExistingNoteRef.current = true;
-          editor.commands.setContent(data.content);
+          editor.commands.setContent(data.content, { emitUpdate: false });
           onHasContentChange?.(videoId, true);
         } else if (editor) {
           // Editor is ready and either no note exists or the note is empty
@@ -279,24 +297,34 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         // If editor isn't ready yet, keep initialContentSet.current = false
         // so the next re-render re-fetches and processes correctly.
         setLoaded(true);
+        setLoadError(false);
       })
-      .catch(() => setLoaded(true));
-  }, [videoId, editor, onHasContentChange]);
+      .catch(() => { if (!controller.signal.aborted) setLoadError(true); });
+    return () => controller.abort();
+  }, [videoId, editor, onHasContentChange, loadRevision]);
 
   // Close delete confirmation dialog on Escape (capture phase to beat modal handler)
   useEffect(() => {
     if (!showDeleteConfirm) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const buttons = confirmationRef.current?.querySelectorAll<HTMLButtonElement>("button");
+    buttons?.[0]?.focus();
 
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        e.preventDefault();
         e.stopPropagation();
         deleteResolverRef.current?.(false);
         setShowDeleteConfirm(false);
+      } else if (e.key === "Tab" && buttons?.length) {
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     }
 
     document.addEventListener("keydown", handleKey, true);
-    return () => document.removeEventListener("keydown", handleKey, true);
+    return () => { document.removeEventListener("keydown", handleKey, true); if (previousFocus?.isConnected) previousFocus.focus(); };
   }, [showDeleteConfirm]);
 
   // Cleanup debounce on unmount
@@ -305,6 +333,8 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  if (loadError) return <div role="alert" className="p-5 text-sm text-red-400">Could not load your note. Your saved content has not been changed.<button className="ml-3 underline" onClick={() => { setLoadError(false); setLoadRevision((value) => value + 1); }}>Retry loading note</button></div>;
 
   if (!loaded || !editor) {
     return (
@@ -315,7 +345,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   return (
     <div className="relative rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-zinc-800 bg-zinc-900">
+      <div inert={showDeleteConfirm} className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-zinc-800 bg-zinc-900">
         <ToolBtn
           active={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -375,6 +405,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         <div className="flex-1" />
 
         <SaveIndicator state={saveState} lastSaved={lastSaved} />
+        {saveState === "error" && <button className="px-2 text-xs text-blue-400 underline" onClick={() => { void saveContent(editor.getHTML()); }}>Retry save</button>}
 
         <ToolBtn
           active={false}
@@ -395,6 +426,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           }}
         >
           <div
+            ref={confirmationRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Delete empty note"
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm mx-4 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl"
           >
@@ -450,7 +485,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       )}
 
       {/* Editor content */}
-      <EditorContent editor={editor} />
+      <div inert={showDeleteConfirm}><EditorContent editor={editor} /></div>
     </div>
   );
 });

@@ -1,6 +1,12 @@
 # FocusTube
 
+![FocusTube workspace preview](docs/images/focustube-preview.png)
+
+<!-- Replace docs/images/focustube-preview.png with your own dashboard or app screenshot. -->
+
 FocusTube turns YouTube playlists into courses with playback progress, rich text notes, and AI summaries and quizzes.
+
+The v2 workspace includes Dashboard, Courses, Study Library, and Settings. Use Courses to watch lessons and create study material; use Study Library to search and revisit saved notes, summaries, and quizzes across courses.
 
 Next.js is the frontend; FastAPI owns authentication, database access, and provider calls. Google login, core data APIs, and real AI summary generation have been verified against a separate Neon database. Video chat now adds transcript-grounded questions and answers; read [RAG explained simply](docs/RAG_GUIDE.md) and its [rollout status](docs/RAG_STATUS.md). Deployment remains deferred.
 
@@ -30,7 +36,7 @@ Copy `frontend/.env.example` to `frontend/.env.local` only if the destination do
 
 ```dotenv
 BACKEND_URL=http://127.0.0.1:8000
-NEXT_PUBLIC_APP_VERSION=0.1.0
+NEXT_PUBLIC_APP_VERSION=2.0.0
 ```
 
 All backend credentials belong in ignored `backend/.env`. Copy `backend/.env.example` only if that file does not exist. An ignored file with a random auth secret was created during the resumed migration session; preserve that secret.

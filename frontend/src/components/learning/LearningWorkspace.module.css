@@ -1,0 +1,55 @@
+.dialog { --work-panel: #fff; --work-ink: #202334; --work-muted: #72788a; --work-line: #e7e9f0; --work-soft: #f7f8fb; --work-blue: #2563eb; --work-accent: #eaf2ff; position: fixed; inset: 0; margin: auto; padding: 0; width: min(900px,calc(100vw - 40px)); height: min(810px,calc(100dvh - 48px)); max-width: none; max-height: none; overflow: hidden; border: 1px solid var(--work-line); border-radius: 17px; background: var(--work-panel); color: var(--work-ink); box-shadow: 0 28px 100px #0005; font-family: var(--font-geist-sans),Arial,sans-serif; }
+.dialog::backdrop { background: #060a14ad; backdrop-filter: blur(5px); }
+.frame { display: flex; height: 100%; min-height: 0; flex-direction: column; }
+.dialog button { cursor: pointer; }
+.dialog button:disabled { cursor: not-allowed; }
+.dialog .quiz button:disabled { opacity: 1; cursor: default; }
+.header button:disabled, .tabs button:disabled, .footer button:disabled { cursor: wait; opacity: .6; }
+.dialog :is(button,a,textarea,[contenteditable]):focus-visible { outline: 2px solid var(--work-blue); outline-offset: 3px; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 24px 27px 20px; gap: 20px; flex-shrink: 0; }
+.header > div { min-width: 0; }
+.header span { color: var(--work-blue); font-size: 9px; font-weight: 650; letter-spacing: .13em; }
+.header h2 { font-size: 17px; font-weight: 600; letter-spacing: -.025em; line-height: 1.5; margin-top: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header > button { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--work-line); border-radius: 8px; color: var(--work-muted); }
+.tabs { display: flex; gap: 4px; padding: 0 20px; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid var(--work-line); }
+.tabs > button { display: flex; align-items: center; gap: 7px; padding: 13px 12px; border-bottom: 2px solid transparent; color: var(--work-muted); font-size: 11px; font-weight: 550; white-space: nowrap; }
+.tabs > button[aria-pressed=true] { border-color: var(--work-blue); color: var(--work-blue); }
+.body { min-height: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
+.chatBody { display: flex; overflow: hidden; scrollbar-gutter: auto; }
+.chat { flex: 1; min-width: 0; min-height: 0; }
+.chat[hidden], .note[hidden] { display: none; }
+.note, .quiz { padding: 24px; }
+.summary { padding: 25px 27px; }
+.hook { font-size: 14px; line-height: 1.9; background: var(--work-accent); color: var(--work-ink); padding: 20px; border-radius: 11px; }
+.summary h3 { color: var(--work-muted); font-size: 9px; font-weight: 600; letter-spacing: .12em; margin: 27px 0 15px; }
+.summary ol { display: flex; flex-direction: column; gap: 11px; }
+.summary li { display: flex; gap: 13px; padding: 15px; background: var(--work-soft); border: 1px solid var(--work-line); border-radius: 9px; }
+.summary li > span { display: flex; justify-content: center; align-items: center; width: 23px; height: 23px; flex-shrink: 0; background: var(--work-accent); color: var(--work-blue); font-size: 10px; border-radius: 6px; }
+.summary li > p { font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-shrink: 0; border-top: 1px solid var(--work-line); padding: 16px 25px; }
+.footer span { font-size: 10px; line-height: 1.7; color: var(--work-muted); }
+.footer > button { background: #2563eb; color: white; border-radius: 8px; padding: 9px 20px; font-size: 11px; font-weight: 550; }
+.loading, .empty { display: flex; min-height: 250px; flex-direction: column; align-items: center; justify-content: center; padding: 35px 22px; color: var(--work-muted); font-size: 12px; text-align: center; }
+.empty { gap: 15px; }
+.empty > svg { color: var(--work-blue); }
+.empty h3 { font-size: 17px; color: var(--work-ink); }
+.empty p { max-width: 370px; line-height: 1.8; }
+.empty button, .empty a { color: var(--work-blue); font-size: 12px; text-decoration: underline; }
+/* Reused editor, quiz and video chat inherit this surface. */
+.body :global(.text-zinc-100), .body :global(.text-zinc-200), .body :global(.text-zinc-300), .note h3 { color: var(--work-ink); }
+.body :global(.text-zinc-400), .body :global(.text-zinc-500) { color: var(--work-muted); }
+.body :global(.border-zinc-800), .body :global(.border-zinc-700) { border-color: var(--work-line); }
+.body :global(.bg-zinc-900), .body :global(.bg-zinc-900\/50), .body :global(.bg-zinc-800\/50), .body :global(.bg-zinc-950\/40) { background: var(--work-soft); }
+.body :global(.bg-zinc-800), .body :global(.bg-zinc-800\/60), .body :global(.bg-zinc-700) { background: var(--work-accent); }
+.body :global(.text-blue-400), .body :global(.text-blue-300) { color: var(--work-blue); }
+.body :global(.ProseMirror) { color: var(--work-ink); overflow-wrap: anywhere; }
+.body :global(.ProseMirror) :is(h2,h3,li,p) { color: inherit; }
+.chat > section, .chat :global(.chat-scrollbar) { color-scheme: inherit; }
+.chat form { background: var(--work-panel); border-color: var(--work-line); }
+.chat details, .chat :global(.border-white\/5), .chat :global(.border-white\/10), .chat :global(.border-white\/\[0\.08\]) { border-color: var(--work-line); }
+.chat :global(.text-blue-50) { color: var(--work-ink); }
+.chat :global(.chat-scrollbar)::-webkit-scrollbar-track { background: var(--work-soft); }
+.chat :global(.chat-scrollbar)::-webkit-scrollbar-thumb { background: var(--work-muted); }
+@media (prefers-color-scheme: light) { .body :global(.text-emerald-200), .body :global(.text-emerald-400) { color: #167454; } .body :global(.text-red-200) { color: #b03648; } .body :global(.text-amber-200), .body :global(.text-amber-300) { color: #986108; } }
+@media (prefers-color-scheme: dark) { .dialog { --work-panel: #191a21; --work-ink: #f1f2f7; --work-muted: #9299ae; --work-line: #2b2e3b; --work-soft: #15161d; --work-blue: #7daaff; --work-accent: #202c44; color-scheme: dark; } }
+@media (max-width: 600px) { .dialog { width: calc(100vw - 20px); height: calc(100dvh - 24px); border-radius: 12px; } .header { padding: 20px 17px 15px; gap: 10px; } .header h2 { font-size: 14px; } .tabs { padding: 0 9px; } .tabs > button { padding: 12px 9px; font-size: 10px; gap: 5px; } .note, .quiz, .summary { padding: 15px; } .footer { padding: 13px 16px; } .footer span { font-size: 9px; } }

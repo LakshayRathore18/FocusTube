@@ -8,9 +8,9 @@ This feature answers questions about **one selected video**. You can use it befo
 
 ## Try it
 
-The quickest way: open **Courses ? your course** and click the blue **Ask AI** button beside a video?s Play, study notes and personal notes actions. This opens that video?s Chat tab directly; no summary is required. Close the workspace to return to the course list.
+The quickest way: open **Courses → your course** and click the blue **Ask AI** button beside a video's Play, study notes and personal notes actions. This opens that video's Ask AI tab directly; no summary is required. Close the workspace to return to the course list.
 
-Alternatively, when video chat is enabled by the backend, open **Learning → your course → Ask this video → a video**. The learning workspace has a **Chat** tab alongside Notes, AI Summary and Quiz.
+Alternatively, open a saved resource in **Study Library** and select **Ask AI** for that resource's video. The shared workspace has Ask AI alongside Personal notes, AI summary, and Quiz when video chat is enabled by the backend. Chat is video-specific and is not stored as a library item.
 
 1. Click **Prepare video chat**. This fetches and indexes the transcript if needed. Preparing a video can take longer than asking a question.
 2. Ask something specific about the lesson. For example, “Why does the instructor use this approach?”
@@ -122,7 +122,7 @@ This version has no course-wide search, personal-note retrieval, saved chats, ti
 | `backend/migrations/versions/0002_video_rag.py` | Adds those tables and enables pgvector |
 | `backend/migrations/versions/0003_variable_embedding_dimensions.py` | Retains old vectors while allowing MiniLM dimensions |
 | `frontend/src/components/learning/VideoChat.tsx` | Preparation controls, messages, questions, polling, retries and citations |
-| `frontend/src/components/learning/ChatVideoPicker.tsx` | Lists every owned course video, independently of summaries |
+| `frontend/src/components/learning/LearningWorkspace.tsx` | Shared resource workspace and video-specific Ask AI tab |
 | `frontend/src/lib/use-video-chat.ts` | Reads the backend capability so disabled chat stays hidden |
 | `backend/tests/test_rag.py` | Isolated behavior/security tests with mocked providers |
 | `frontend/tests/video-chat.test.tsx` | Chat interaction, cancellation and polling tests |

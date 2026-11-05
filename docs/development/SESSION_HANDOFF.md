@@ -1,3 +1,17 @@
+# Study Library replacement and v2 UI continuation - 2026-11-06
+
+Implemented the approved replacement of Learning with protected `/study-library`. It lists individual saved notes, summaries and quizzes across courses, with visible-text search, course/type filters, counts, stable sorting, 24-item pagination, responsive blue light/dark styling and loading/empty/error recovery. Sidebar/navbar/Dashboard/Settings links now target Study Library. `/learning` redirects; `/learning/[courseId]` validates session/course ownership before redirecting with a course filter. Removed the old course-grid/resource-selector components and unused ChatVideoPicker; kept the workspace, editor, quiz and video chat used by Courses.
+
+New authenticated `GET /api/study-library` reads existing records and returns typed camelCase metadata. Ownership is applied before resource processing; AI content must be ready and unlocked for the owned video. Archived videos retain saved resources. HTML notes become plain text without script/style text; quizzes expose no questions/answers in previews or search. No schema/migration/database operations. Search currently processes owned text in the backend before pagination, rather than using a full-text index; see API.md for the contract.
+
+The shared workspace now uses a native modal with explicit Tab containment, Escape/backdrop handling and focus/scroll restoration. Saved-only library openings never generate AI content; Courses retains explicit generation and video chat. Notes are flushed before closing or changing tabs, writes are serialized, and failed saves keep the editor open with retry. Empty existing notes still require deletion confirmation. Failed note loads cannot overwrite saved notes. Switching tabs keeps the editor/chat mounted.
+
+Verification: frontend typecheck, full lint (now clean), production build and 13 tests pass; backend Ruff lint/format and all 140 tests pass, with the existing Authlib deprecation warning. The production build needed network access for the existing Google Fonts. Isolated headless Brave checks passed desktop light/dark, tablet, 390px light/dark and 320px layouts without horizontal overflow or browser errors. Checks include combined filters, pagination, resource opening, focus/scroll restoration, newest-edit-vs-autosave race, failed save/retry, delete/cancel, quizzes, chat, missing-resource/HTTP recovery, empty states, authenticated legacy redirects, unauthorized course denial and anonymous protection. Screenshots/harness are ignored under backend/.cache/ui-preview/.
+
+Browser checks use sample data; backend tests use temporary SQLite and mocked providers. They do not verify real PostgreSQL migrations/concurrency, Google OAuth or live provider calls. No deployment, staging or commits. Preserve all earlier uncommitted Dashboard/Courses/Settings/shared-chrome work, blue v2.0.0 metadata, and user-authored docs/resume/ files. Current navigation docs and RAG entry instructions were updated; older notes below are historical.
+
+---
+
 # GitHub / deployment safety review - 2026-11-05
 
 User asked how to upload/deploy the migrated FastAPI/RAG app while preserving the old Vercel version and retaining an easy rollback. This turn was a review/documentation task: no branch creation, staging, commit, push, database change, deploy or hosting/OAuth setting change was performed.

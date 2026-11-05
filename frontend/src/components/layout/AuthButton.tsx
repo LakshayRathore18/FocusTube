@@ -2,105 +2,56 @@
 
 import { signIn, signOut, useSession } from "@/components/auth/AuthProvider";
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, LogOut, User } from "lucide-react";
+import { ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
+import styles from "./LayoutChrome.module.css";
 
-/**
- * Authentication button shown in the global navbar.
- *
- * - Unauthenticated: "Sign in with Google" button.
- * - Authenticated: user avatar + chevron with a click-to-toggle dropdown containing "Sign out".
- */
 export default function AuthButton() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const firstItemRef = useRef<HTMLAnchorElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    if (!open) return;
+    firstItemRef.current?.focus();
+    function handleClick(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
         setOpen(false);
+        triggerRef.current?.focus();
       }
     }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
 
-  if (status === "loading") {
-    return <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />;
-  }
-
-  if (status === "error") return <span role="alert" className="text-sm text-red-600">Sign-in service unavailable</span>;
-
-  if (!session) {
-    return (
-      <button
-        onClick={() => signIn()}
-        className="px-4 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-md hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200 transition-colors"
-      >
-        Sign in with Google
-      </button>
-    );
-  }
-
-  const avatarSrc = session.user?.image ?? null;
+  if (status === "loading") return <span className={styles.avatarSkeleton} role="status" aria-label="Loading account" />;
+  if (status === "error") return <span role="alert" className={styles.authError}>Sign-in service unavailable</span>;
+  if (!session) return <button onClick={() => signIn()} className={styles.signInButton}><UserRound size={16} aria-hidden="true" /> Sign in with Google</button>;
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 focus:outline-none group"
-        aria-label="User menu"
-      >
-        {avatarSrc ? (
-          <Image
-            src={avatarSrc}
-            alt={session.user?.name ?? "avatar"}
-            width={32}
-            height={32}
-            className="rounded-full ring-2 ring-gray-300 dark:ring-gray-600"
-          />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-200">
-            {session.user?.name?.[0] ?? "U"}
-          </div>
-        )}
-        <ChevronDown
-          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
+    <div ref={ref} className={styles.accountMenu} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false); }}>
+      <button ref={triggerRef} onClick={() => setOpen((value) => !value)} className={styles.accountTrigger} aria-label="User menu" aria-expanded={open} aria-controls="account-dropdown">
+        <span className={styles.avatar}>{session.user?.image ? <Image src={session.user.image} alt="" width={34} height={34} /> : session.user?.name?.[0] ?? "U"}</span>
+        <span className={styles.headerAccountName}>{session.user?.name?.trim().split(/\s+/)[0] ?? "Account"}</span>
+        <ChevronDown size={14} className={styles.accountChevron} data-open={open} aria-hidden="true" />
       </button>
-
       {open && (
-        <div className="absolute right-0 mt-2 w-48 rounded-xl bg-white dark:bg-gray-900 shadow-xl border border-gray-100 dark:border-gray-800 z-50 overflow-hidden">
-          {/* User info header */}
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-              {session.user?.name}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-              {session.user?.email}
-            </p>
-          </div>
-
-          {/* Menu items */}
-          <div className="p-1">
-            <button
-              onClick={() => { setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              <User className="w-4 h-4 text-gray-400" />
-              Profile
-            </button>
-            <button
-              onClick={() => { setOpen(false); signOut(); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
+        <div className={styles.accountDropdown} id="account-dropdown">
+          <div className={styles.dropdownHeading}><strong>{session.user?.name}</strong><span>{session.user?.email}</span></div>
+          <div className={styles.dropdownItems}>
+            <Link ref={firstItemRef} href="/settings" onClick={() => setOpen(false)}><Settings size={16} aria-hidden="true" /> Account settings</Link>
+            <button onClick={() => { setOpen(false); void signOut(); }} className={styles.signOutButton}><LogOut size={16} aria-hidden="true" /> Sign out</button>
           </div>
         </div>
       )}

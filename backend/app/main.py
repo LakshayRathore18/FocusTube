@@ -13,7 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import get_settings
 from .dependencies import DB
-from .routers import ai, auth, courses, notes, rag, stats, videos
+from .routers import ai, auth, courses, notes, rag, stats, study_library, videos
 from .services.rag_provider import RagError
 
 logger = logging.getLogger("focustube")
@@ -122,6 +122,7 @@ def create_app() -> FastAPI:
         courses.router,
         videos.router,
         notes.router,
+        study_library.router,
         stats.router,
         ai.router,
         rag.router,

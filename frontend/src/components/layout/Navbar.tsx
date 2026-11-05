@@ -1,65 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { ChevronRight, Menu, Play, Search } from "lucide-react";
 import AuthButton from "./AuthButton";
 import SearchOverlay from "../search/SearchOverlay";
-import { Menu, Search } from "lucide-react";
+import styles from "./LayoutChrome.module.css";
 
 interface NavbarProps {
   onMenuClick: () => void;
+  sidebarOpen: boolean;
 }
 
-function PlayIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="shrink-0">
-      <defs>
-        <linearGradient id="play-gradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#6366F1" />
-          <stop offset="100%" stopColor="#3B82F6" />
-        </linearGradient>
-      </defs>
-      <path d="M8 5.14v14.72a1 1 0 0 0 1.5.86l11-7.36a1 1 0 0 0 0-1.72l-11-7.36A1 1 0 0 0 8 5.14Z" fill="url(#play-gradient)" />
-    </svg>
-  );
-}
-
-export default function Navbar({ onMenuClick }: NavbarProps) {
+export default function Navbar({ onMenuClick, sidebarOpen }: NavbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
+  const pathname = usePathname();
+  const section = pathname.startsWith("/dashboard") ? "Dashboard"
+    : pathname.startsWith("/courses") ? "Courses"
+    : pathname.startsWith("/study-library") ? "Study Library"
+    : pathname.startsWith("/settings") ? "Settings" : null;
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, []);
 
   return (
     <>
-      <header className="flex items-center justify-between px-4 lg:px-6 py-3 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-2">
-          {/* Mobile hamburger */}
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Open sidebar"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <PlayIcon />
-            <span className="text-base font-semibold text-gray-900 dark:text-white tracking-tight">FocusTube</span>
+      <header className={styles.navbar}>
+        <div className={styles.brandGroup}>
+          <button onClick={onMenuClick} className={styles.mobileMenuButton} aria-label="Open sidebar" aria-expanded={sidebarOpen} aria-controls="workspace-sidebar"><Menu size={20} aria-hidden="true" /></button>
+          <Link href="/" className={styles.brand} aria-label="FocusTube home">
+            <span className={styles.brandMark}><Play size={17} fill="currentColor" strokeWidth={1.5} aria-hidden="true" /></span>
+            <span>Focus<span className={styles.brandAccent}>Tube</span></span>
           </Link>
         </div>
-
-        {/* Right: search + auth */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Search courses"
-          >
-            <Search className="w-5 h-5" />
+        {section && <div className={styles.breadcrumb} aria-label="Current section"><span>Workspace</span><ChevronRight size={13} aria-hidden="true" /><strong>{section}</strong></div>}
+        <div className={styles.navbarActions}>
+          <button onClick={() => setSearchOpen(true)} className={styles.searchTrigger} aria-label="Search courses" aria-keyshortcuts="Control+k Meta+k">
+            <Search size={17} aria-hidden="true" /><span>Search your courses</span><kbd>⌘ / Ctrl K</kbd>
           </button>
+          <span className={styles.actionDivider} aria-hidden="true" />
           <AuthButton />
         </div>
       </header>
-
       <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
