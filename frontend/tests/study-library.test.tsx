@@ -1,11 +1,15 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderUI, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import StudyLibraryPage from "../src/components/study-library/StudyLibraryPage";
 import type { StudyLibraryData } from "../src/components/study-library/types";
 
-vi.mock("next/dynamic", () => ({ default: () => function Workspace({ onClose, initialTab, savedOnly }: { onClose: () => void; initialTab: string; savedOnly: boolean }) {
+vi.mock("../src/components/learning/LearningWorkspace", () => ({ default: function Workspace({ onClose, initialTab, savedOnly }: { onClose: () => void; initialTab: string; savedOnly: boolean }) {
   return <div role="dialog"><p>{initialTab} {savedOnly ? "saved only" : "generation enabled"}</p><button onClick={onClose}>Close test workspace</button></div>;
 } }));
+
+const render = (ui: ReactNode) => renderUI(<MemoryRouter>{ui}</MemoryRouter>);
 
 const data: StudyLibraryData = {
   items: [{ id: "video:notes", type: "notes", videoId: "video", youtubeVideoId: "abcdefghijk", videoTitle: "React closures", courseId: "course", courseTitle: "React", preview: "Remember the lexical scope", updatedAt: "2026-11-06T10:00:00Z", isAvailable: false }],

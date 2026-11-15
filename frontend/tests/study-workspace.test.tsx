@@ -1,6 +1,10 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render as renderUI, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import LearningWorkspace from "../src/components/learning/LearningWorkspace";
+
+const render = (ui: ReactNode) => renderUI(<MemoryRouter>{ui}</MemoryRouter>);
 
 const { flush } = vi.hoisted(() => ({ flush: vi.fn(async () => true) }));
 vi.mock("../src/components/notes/NoteEditor", async () => {

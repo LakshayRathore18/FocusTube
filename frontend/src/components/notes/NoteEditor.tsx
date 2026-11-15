@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";

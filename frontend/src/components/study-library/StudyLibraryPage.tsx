@@ -1,13 +1,11 @@
-"use client";
-
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import Link from "next/link";
+import { lazy, Suspense } from "react";
+import { Link } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, BookOpen, Brain, ChevronLeft, ChevronRight, FileText, Library, Search, Sparkles, X } from "lucide-react";
 import type { LibraryResource, ResourceType, StudyLibraryData } from "./types";
 import styles from "./StudyLibrary.module.css";
 
-const LearningWorkspace = dynamic(() => import("../learning/LearningWorkspace"));
+const LearningWorkspace = lazy(() => import("../learning/LearningWorkspace"));
 const resources = [
   { id: "notes", label: "Personal notes", singular: "Personal note", icon: FileText, description: "Your ideas, in your own words." },
   { id: "summary", label: "AI summaries", singular: "AI summary", icon: Sparkles, description: "The key points, ready to revisit." },
@@ -66,7 +64,7 @@ export default function StudyLibraryPage({ initialCourseId = "" }: { initialCour
             <h1>Study Library<span>.</span></h1>
             <p>Your notes, key ideas, and practice. All within reach.</p>
           </div>
-          <Link href="/courses" className={styles.courseLink}><BookOpen size={15} aria-hidden="true" /> Your courses <ArrowUpRight size={15} aria-hidden="true" /></Link>
+          <Link to="/courses" className={styles.courseLink}><BookOpen size={15} aria-hidden="true" /> Your courses <ArrowUpRight size={15} aria-hidden="true" /></Link>
         </header>
 
         <div className={styles.stats} aria-label="Matching resources">
@@ -100,7 +98,7 @@ export default function StudyLibraryPage({ initialCourseId = "" }: { initialCour
           <div aria-busy={loading}>
             {loading ? <div className={styles.grid} aria-label="Loading resources">{[0, 1, 2, 3, 4, 5].map((id) => <div key={id} className={styles.skeleton} />)}</div>
               : result.error ? <div className={styles.empty} role="alert"><Library size={30} aria-hidden="true" /><h3>Your library is taking a moment</h3><p>{result.error}</p><button className={styles.primary} onClick={() => setRevision((value) => value + 1)}>Try again</button>{hasFilters && <button className={styles.clear} onClick={clearFilters}>Clear filters</button>}</div>
-              : !data?.items.length ? <div className={styles.empty}><Library size={32} aria-hidden="true" /><h3>{data?.resourceTotal ? "No resources match just yet" : "Your next good idea belongs here"}</h3><p>{data?.resourceTotal ? "Try another search or clear your filters." : "Save a note or generate study material from a lesson. You'll find it here, ready when you are."}</p>{hasFilters ? <button className={styles.primary} onClick={clearFilters}>Clear filters</button> : <Link href="/courses" className={styles.primary}>Explore your courses <ArrowRight size={15} aria-hidden="true" /></Link>}</div>
+              : !data?.items.length ? <div className={styles.empty}><Library size={32} aria-hidden="true" /><h3>{data?.resourceTotal ? "No resources match just yet" : "Your next good idea belongs here"}</h3><p>{data?.resourceTotal ? "Try another search or clear your filters." : "Save a note or generate study material from a lesson. You'll find it here, ready when you are."}</p>{hasFilters ? <button className={styles.primary} onClick={clearFilters}>Clear filters</button> : <Link to="/courses" className={styles.primary}>Explore your courses <ArrowRight size={15} aria-hidden="true" /></Link>}</div>
               : <><p className={styles.resultCount} role="status">{data.total} resource{data.total === 1 ? "" : "s"}{courseId ? " in this course" : " across your courses"}</p><div className={styles.grid}>
                 {data.items.map((item) => { const config = resources.find((resource) => resource.id === item.type)!; const Icon = config.icon;
                   return <button key={item.id} className={styles.card} onClick={() => setWorkspace(item)} aria-label={`Open ${config.singular.toLowerCase()}: ${item.videoTitle}`}>
@@ -114,7 +112,7 @@ export default function StudyLibraryPage({ initialCourseId = "" }: { initialCour
         </section>
         <p className={styles.footer}><Library size={13} aria-hidden="true" /> A little review. A lot more remembered.</p>
       </div>
-      {workspace && <LearningWorkspace key={workspace.id} videoId={workspace.videoId} youtubeVideoId={workspace.youtubeVideoId} videoTitle={workspace.videoTitle} courseId={workspace.courseId} initialTab={workspace.type} savedOnly onClose={() => { setWorkspace(null); setRevision((value) => value + 1); }} />}
+      {workspace && <Suspense fallback={<p role="status">Loading workspace…</p>}><LearningWorkspace key={workspace.id} videoId={workspace.videoId} youtubeVideoId={workspace.youtubeVideoId} videoTitle={workspace.videoTitle} courseId={workspace.courseId} initialTab={workspace.type} savedOnly onClose={() => { setWorkspace(null); setRevision((value) => value + 1); }} /></Suspense>}
     </div>
   );
 }

@@ -53,3 +53,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Vite production output
+/frontend/dist/
+
+# Local planning notes
+/.local-notes/

@@ -1,8 +1,6 @@
-"use client";
-
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ChevronRight, Menu, Play, Search } from "lucide-react";
 import AuthButton from "./AuthButton";
 import SearchOverlay from "../search/SearchOverlay";
@@ -15,7 +13,7 @@ interface NavbarProps {
 
 export default function Navbar({ onMenuClick, sidebarOpen }: NavbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const section = pathname.startsWith("/dashboard") ? "Dashboard"
     : pathname.startsWith("/courses") ? "Courses"
     : pathname.startsWith("/study-library") ? "Study Library"
@@ -37,7 +35,7 @@ export default function Navbar({ onMenuClick, sidebarOpen }: NavbarProps) {
       <header className={styles.navbar}>
         <div className={styles.brandGroup}>
           <button onClick={onMenuClick} className={styles.mobileMenuButton} aria-label="Open sidebar" aria-expanded={sidebarOpen} aria-controls="workspace-sidebar"><Menu size={20} aria-hidden="true" /></button>
-          <Link href="/" className={styles.brand} aria-label="FocusTube home">
+          <Link to="/" className={styles.brand} aria-label="FocusTube home">
             <span className={styles.brandMark}><Play size={17} fill="currentColor" strokeWidth={1.5} aria-hidden="true" /></span>
             <span>Focus<span className={styles.brandAccent}>Tube</span></span>
           </Link>

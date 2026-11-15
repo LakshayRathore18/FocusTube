@@ -1,15 +1,6 @@
-import Link from "next/link";
-import { getSession } from "@/lib/backend";
-import { redirect } from "next/navigation";
+import { Link } from "react-router-dom";
 
-export default async function Home() {
-  const session = await getSession();
-
-  // If already signed in, go straight to dashboard
-  if (session?.user) {
-    redirect("/dashboard");
-  }
-
+export default function Home() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4">
       <main className="flex flex-col items-center text-center max-w-2xl py-24">
@@ -22,13 +13,13 @@ export default async function Home() {
         </p>
         <div className="flex gap-4">
           <Link
-            href="/sign-in"
+            to="/sign-in"
             className="rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
           >
             Get Started
           </Link>
           <Link
-            href="/dashboard"
+            to="/dashboard"
             className="rounded-lg border border-gray-300 dark:border-gray-700 px-6 py-3 text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             Dashboard

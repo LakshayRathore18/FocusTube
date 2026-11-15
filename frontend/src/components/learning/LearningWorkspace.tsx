@@ -1,7 +1,5 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { Brain, FileText, MessageCircle, Sparkles, X } from "lucide-react";
 import NoteEditor, { type NoteEditorHandle } from "@/components/notes/NoteEditor";
 import QuizPlayer from "@/components/shared/QuizPlayer";
@@ -161,7 +159,7 @@ export default function LearningWorkspace({ videoId, youtubeVideoId, videoTitle,
         {chatEnabled && chatOpened && <div className={styles.chat} hidden={activeTab !== "chat"}><VideoChat key={videoId} videoId={videoId} /></div>}
         {aiTab && (aiLoading && !aiContent ? <div className={styles.loading} role="status">Loading your saved material…</div>
           : hasResource ? activeTab === "summary" && aiContent?.summary ? <div className={styles.summary}><p className={styles.hook}>{aiContent.summary.hook}</p><h3>KEY TAKEAWAYS</h3><ol>{aiContent.summary.keyPoints.map((point, index) => <li key={index}><span>{index + 1}</span><p>{point}</p></li>)}</ol></div> : <div className={styles.quiz}><QuizPlayer questions={aiContent!.quiz!.questions} resetLabel="Reset" /></div>
-          : <div className={styles.empty}><Sparkles size={27} aria-hidden="true" /><h3>{aiGenerating ? "Preparing your study material" : "No saved material available"}</h3><p role={aiError ? "alert" : undefined}>{aiError || "This resource may have been removed or needs to be generated from its course."}</p>{aiGenerating ? <AiGenerationProgress videoId={videoId} /> : <><button onClick={() => { setAiError(""); setAiLoading(true); setReload((value) => value + 1); }}>Retry loading</button>{savedOnly ? <Link href={`/courses/${encodeURIComponent(courseId)}`}>Open course</Link> : <button disabled={!youtubeVideoId} onClick={() => void generate()}>Generate AI content</button>}</>}</div>)}
+          : <div className={styles.empty}><Sparkles size={27} aria-hidden="true" /><h3>{aiGenerating ? "Preparing your study material" : "No saved material available"}</h3><p role={aiError ? "alert" : undefined}>{aiError || "This resource may have been removed or needs to be generated from its course."}</p>{aiGenerating ? <AiGenerationProgress videoId={videoId} /> : <><button onClick={() => { setAiError(""); setAiLoading(true); setReload((value) => value + 1); }}>Retry loading</button>{savedOnly ? <Link to={`/courses/${encodeURIComponent(courseId)}`}>Open course</Link> : <button disabled={!youtubeVideoId} onClick={() => void generate()}>Generate AI content</button>}</>}</div>)}
       </div>
       <footer className={styles.footer}><span>{transitioning ? "Saving your changes…" : activeTab === "notes" ? "Your notes save as you write." : "A little review goes a long way."}</span><button disabled={transitioning} onClick={() => void transition()}>{transitioning ? "Saving…" : "Done"}</button></footer>
     </div>

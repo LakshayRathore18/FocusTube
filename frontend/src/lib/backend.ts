@@ -1,33 +1,35 @@
-import "server-only";
-
-import { cache } from "react";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect } from "react-router-dom";
 import type { Session } from "./auth-types";
 
-export async function backendFetch(path: string) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("focustube_session");
+/** Browser requests keep HttpOnly session cookies on the same origin. */
+export async function backendFetch(path: string, signal?: AbortSignal) {
   try {
-    return await fetch(`${process.env.BACKEND_URL ?? "http://127.0.0.1:8000"}${path}`, {
-      headers: token ? { Cookie: `focustube_session=${token.value}` } : {},
+    return await fetch(path, {
+      credentials: "same-origin",
       cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.timeout(10_000),
     });
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     throw new Error("The service is unavailable. Please try again shortly.");
   }
 }
 
-export const getSession = cache(async (): Promise<Session | null> => {
-  const response = await backendFetch("/api/auth/session");
+export async function getSession(signal?: AbortSignal): Promise<Session | null> {
+  const response = await backendFetch("/api/auth/session", signal);
   if (response.status === 401) return null;
   if (!response.ok) throw new Error("The service is unavailable. Please try again shortly.");
   return response.json();
-});
+}
 
-export async function requireSession() {
-  const session = await getSession();
-  if (!session) redirect("/sign-in");
-  return session;
+export async function loadCourse(id: string, signal?: AbortSignal) {
+  const response = await backendFetch(`/api/courses/${encodeURIComponent(id)}`, signal);
+  if (response.status === 401) throw redirect("/sign-in");
+  if (response.status === 403 || response.status === 404) {
+    throw new Response(null, { status: 404 });
+  }
+  if (!response.ok) throw new Error("Unable to load course");
+  return response.json();
 }

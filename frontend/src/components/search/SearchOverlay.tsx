@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { ArrowUpRight, BookOpen, Search, X } from "lucide-react";
 import styles from "../layout/LayoutChrome.module.css";
 
@@ -11,7 +9,7 @@ interface SearchOverlayProps {
 }
 
 export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [courses, setCourses] = useState<{ id: string; title: string }[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -48,8 +46,8 @@ export default function SearchOverlay({ isOpen, onClose }: SearchOverlayProps) {
   const filtered = courses.filter((course) => course.title.toLowerCase().includes(query.toLowerCase()));
   const navigateTo = useCallback((courseId: string) => {
     onClose();
-    router.push(`/courses/${courseId}`);
-  }, [onClose, router]);
+    navigate(`/courses/${courseId}`);
+  }, [onClose, navigate]);
 
   function handleKeyDown(event: React.KeyboardEvent) {
     if (event.key === "ArrowDown") {

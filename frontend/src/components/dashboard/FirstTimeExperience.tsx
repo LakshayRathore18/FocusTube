@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Rocket, Plus } from "lucide-react";
 
 const DEMO_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLxwd9rWENEb9nmHty90htveSgrtNGz2S5";
@@ -26,7 +24,7 @@ const FEATURES = [
  * because the playlist count will be > 0 on next fetch.
  */
 export default function FirstTimeExperience() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Demo import state
   const [demoImporting, setDemoImporting] = useState(false);
@@ -62,7 +60,7 @@ export default function FirstTimeExperience() {
 
       if (!res.ok) {
         if (res.status === 409 && data.courseId) {
-          router.push(`/courses/${data.courseId}`);
+          navigate(`/courses/${data.courseId}`);
           return;
         }
         setError((data.error as string) ?? "Failed to import playlist");
@@ -70,12 +68,12 @@ export default function FirstTimeExperience() {
         return;
       }
 
-      router.push(`/courses/${data.courseId}`);
+      navigate(`/courses/${data.courseId}`);
     } catch {
       setError("Network error — please try again");
       setImporting(false);
     }
-  }, [router]);
+  }, [navigate]);
 
   const handleDemoImport = useCallback(() => {
     importPlaylist(DEMO_PLAYLIST_URL, setDemoImporting, setDemoError);

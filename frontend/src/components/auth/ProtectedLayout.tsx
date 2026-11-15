@@ -1,6 +1,7 @@
-import { requireSession } from "@/lib/backend";
+import { Navigate, Outlet } from "react-router-dom";
+import { useSession } from "./AuthProvider";
 
-export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  await requireSession();
-  return children;
+export default function ProtectedLayout() {
+  const { data: session } = useSession();
+  return session ? <Outlet /> : <Navigate to="/sign-in" replace />;
 }

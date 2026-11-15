@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useRef } from "react";
 import QuizPlayer from "@/components/shared/QuizPlayer";
 import type { Video, StudySummary, QuizPayload } from "./types";

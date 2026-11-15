@@ -1,11 +1,11 @@
-# Current FastAPI migration architecture
+# Current React and FastAPI architecture
 
-Next.js 16 / React 19 renders the application and proxies browser API requests. FastAPI is the sole active owner of authentication, business APIs, PostgreSQL, YouTube, Supadata, and Gemini. This document describes implemented code, not proof of a completed production cutover.
+React 19 renders the browser application, React Router owns navigation/data loaders, and Vite builds static assets. Vite proxies browser API requests in development/preview; production hosting supplies that proxy. FastAPI is the sole active owner of authentication, business APIs, PostgreSQL, YouTube, Supadata, and Gemini. This document describes implemented code, not proof of a completed production cutover.
 
 ```mermaid
 flowchart LR
-    Browser -->|localhost:3000| Next[Next.js frontend]
-    Next -->|API rewrite / server fetch| API[FastAPI :8000]
+    Browser -->|localhost:3000| Frontend[React SPA / Vite]
+    Frontend -->|same-origin /api proxy| API[FastAPI :8000]
     API --> DB[(New PostgreSQL database)]
     API --> Google[Google OAuth / OIDC]
     API --> YouTube[YouTube Data API]
@@ -26,9 +26,9 @@ flowchart LR
 | `backend/app/routers/` | Auth, courses, videos, notes, statistics, AI |
 | `backend/app/services/` | External provider adapters |
 | `backend/tests/` | SQLite API/identity tests and mocked provider tests |
-| `frontend/src/lib/backend.ts` | Server API fetches, session lookup, authenticated redirects |
-| `frontend/src/components/auth/` | Client auth state and protected server layout |
-| `frontend/next.config.ts` | API rewrite and 120-second proxy timeout |
+| `frontend/src/lib/backend.ts` | Abortable no-store browser API fetches and session/course lookup |
+| `frontend/src/components/auth/` | Loader-backed auth context and protected React outlet |
+| `frontend/vite.config.ts` | Local API proxy, sanitized proxy errors and 120-second timeout |
 | `package.json` | npm workspace shortcuts; frontend dependencies are declared in `frontend/package.json` |
 | `docs/archive/nextjs-ai-content.ts.txt` | Preserved pre-existing AI route comments/code |
 
@@ -38,7 +38,7 @@ Authlib handles Google OAuth/OIDC state and identity validation. Only verified e
 
 The browser receives an opaque session token in `focustube_session`; only its SHA-256 hash and expiry are stored in PostgreSQL. Cookies are HttpOnly, SameSite=Lax, path `/`, and Secure when configured for HTTPS. Temporary OAuth state uses the signed `focustube_oauth` cookie with a ten-minute lifetime. Logout revokes the presented token and clears cookies.
 
-Every data API verifies the session and ownership. Access to shared AI cache entries also requires an owned video. Server fetches forward only the app session cookie and use `no-store`. Client auth state is checked again on pathname changes. Backend authorization remains authoritative even when a frontend layout is reused during navigation.
+Every data API verifies the session and ownership. Access to shared AI cache entries also requires an owned video. Browser route loaders send same-origin cookies, use `no-store`, bound requests to ten seconds and abort on navigation. The root loader rechecks the session on navigation/revalidation. Auth-service failures show a retryable error rather than being treated as logout; missing/expired sessions redirect protected routes to sign-in. Backend authorization remains authoritative. Course 403/404 responses use a safe not-found view. Playlist sync revalidates the course loader without a full document reload.
 
 ## Data and imports
 

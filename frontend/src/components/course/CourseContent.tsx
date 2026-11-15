@@ -1,13 +1,10 @@
-"use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
-import dynamic from "next/dynamic";
-import Image from "next/image";
+import { Link } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { ArrowLeft, ArrowRight, Archive, BookOpen, Check, CircleCheck, Clock3, FileText, MessageCircle, Play, Search, Sparkles, Trash2, X } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 import styles from "./Courses.module.css";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import type { Video, Course, StudySummary, QuizPayload, AiGenerationState } from "./types";
 import NotesModal from "./NotesModal";
 import VideoPlayerModal from "./VideoPlayerModal";
@@ -17,7 +14,7 @@ import SyncButton from "./SyncButton";
 import { aiErrorMessage } from "@/lib/ai-errors";
 import { useVideoChat } from "@/lib/use-video-chat";
 
-const LearningWorkspace = dynamic(() => import("../learning/LearningWorkspace"));
+const LearningWorkspace = lazy(() => import("../learning/LearningWorkspace"));
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
@@ -25,7 +22,7 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 45;
 
 export default function CourseContent({ course, playVideoId }: { course: Course; playVideoId?: string }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [lessonQuery, setLessonQuery] = useState("");
   const [lessonFilter, setLessonFilter] = useState("all");
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -87,7 +84,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
     return () => { active = false; };
     // Polling uses the current course and owns its own bounded timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [course.id]);
+  }, [course.id, course.videos]);
 
   // Cleanup all poll timers on unmount
   useEffect(() => {
@@ -303,7 +300,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
       const response = await fetch(`/api/courses/${course.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Could not delete course");
       setShowDeleteConfirm(false);
-      router.push("/courses");
+      navigate("/courses");
     } catch {
       setDeleteError("The course could not be deleted. Please try again.");
     } finally {
@@ -315,7 +312,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
 
   /**
    * Called by SyncButton after a successful sync.
-   * router.refresh() (inside SyncButton) reloads server data;
+   * React Router revalidation (inside SyncButton) reloads course data;
    * here we just clear any locally-cached AI / notes state so
    * the re-fetched server data is the single source of truth.
    */
@@ -362,11 +359,11 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
   return (
     <div className={styles.page}><div className={styles.inner}>
       <div className={styles.detailTopbar}>
-        <Link href="/courses" className={styles.backLink}><ArrowLeft size={15} aria-hidden="true" /> Back to courses</Link>
+        <Link to="/courses" className={styles.backLink}><ArrowLeft size={15} aria-hidden="true" /> Back to courses</Link>
         <div className={styles.detailActions}><SyncButton courseId={course.id} onSyncComplete={handleSyncComplete} /><button className={styles.deleteTrigger} onClick={() => { setDeleteError(null); setShowDeleteConfirm(true); }}><Trash2 size={14} aria-hidden="true" /> Delete course</button></div>
       </div>
       <header className={styles.courseHero}>
-        <div className={styles.detailImage}>{course.thumbnailUrl ? <Image src={course.thumbnailUrl} alt="" fill sizes="(max-width: 700px) 100vw, 380px" className={styles.coverImage} /> : <BookOpen size={54} strokeWidth={1.2} aria-hidden="true" />}<span className={styles.detailImageLabel}><BookOpen size={12} aria-hidden="true" /> YOUR PERSONAL CLASSROOM</span></div>
+        <div className={styles.detailImage}>{course.thumbnailUrl ? <img loading="lazy" decoding="async" src={course.thumbnailUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} sizes="(max-width: 700px) 100vw, 380px" className={styles.coverImage} /> : <BookOpen size={54} strokeWidth={1.2} aria-hidden="true" />}<span className={styles.detailImageLabel}><BookOpen size={12} aria-hidden="true" /> YOUR PERSONAL CLASSROOM</span></div>
         <div className={styles.courseHeroBody}>
           <p className={styles.kicker}><span /> {pct === 100 && totalCount > 0 ? "COURSE COMPLETED" : "ONE LESSON AT A TIME"}</p>
           <h1>{course.title}</h1>
@@ -391,7 +388,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
           return (
             <article key={video.id} className={styles.lessonRow} data-completed={complete} data-active={activeVideo?.id === video.id} data-archived={!video.isAvailable}>
               <button className={styles.completionToggle} disabled={!video.isAvailable} aria-pressed={complete} aria-label={`${complete ? "Mark as not started" : "Mark as completed"}: ${video.title}`} title={complete ? "Mark as not started" : "Mark as completed"} onClick={() => { const status = complete ? "not_started" : "completed"; updateVideoStatus(video.id, status, status === "completed" ? null : undefined); }}>{complete ? <Check size={17} aria-hidden="true" /> : String(course.videos.findIndex((item) => item.id === video.id) + 1).padStart(2,"0")}</button>
-              <button className={styles.lessonImage} onClick={() => handlePlayVideo(video)} disabled={!video.isAvailable} aria-label={`Play ${video.title}`}>{video.thumbnailUrl ? <Image src={video.thumbnailUrl} alt="" fill sizes="110px" className={styles.coverImage} /> : <Play size={22} aria-hidden="true" />}<span className={styles.lessonPlay}><Play size={13} fill="currentColor" aria-hidden="true" /></span></button>
+              <button className={styles.lessonImage} onClick={() => handlePlayVideo(video)} disabled={!video.isAvailable} aria-label={`Play ${video.title}`}>{video.thumbnailUrl ? <img loading="lazy" decoding="async" src={video.thumbnailUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} sizes="110px" className={styles.coverImage} /> : <Play size={22} aria-hidden="true" />}<span className={styles.lessonPlay}><Play size={13} fill="currentColor" aria-hidden="true" /></span></button>
               <div className={styles.lessonInfo}><button className={styles.lessonTitle} disabled={!video.isAvailable} onClick={() => handlePlayVideo(video)}>{video.title}</button><div className={styles.lessonMeta}><span className={styles.lessonStatus} data-state={video.status}>{!video.isAvailable ? <><Archive size={11} aria-hidden="true" /> Archived</> : complete ? <><CircleCheck size={11} aria-hidden="true" /> Completed</> : video.status === "in_progress" ? "In progress" : "Not started"}</span>{video.durationSeconds ? <span><Clock3 size={11} aria-hidden="true" />{formatDuration(video.durationSeconds)}</span> : null}{hasNotes && <span className={styles.savedNote}><FileText size={11} aria-hidden="true" /> Notes saved</span>}</div></div>
               <div className={styles.lessonActions}>
                 {video.isAvailable && (generating ? <div className={styles.generationIndicator}><AiGenerationProgress key={video.id} videoId={video.id} /></div> : <button className={styles.lessonAction} data-ready={ready} data-failed={failed} disabled={aiContentLoading} onClick={() => ready ? handleOpenAiContent(video) : triggerGeneration(video)} aria-label={`${ready ? "View study notes" : failed ? "Retry study notes" : "Generate study notes"}: ${video.title}`} title={failed ? `${aiErrorMessage(aiState.reason)} Click to retry.` : ready ? "Open summary and quiz" : "Generate a summary and quiz"}><Sparkles size={14} aria-hidden="true" />{ready ? "Study notes" : failed ? "Retry notes" : "Generate notes"}</button>)}
@@ -406,7 +403,7 @@ export default function CourseContent({ course, playVideoId }: { course: Course;
       <p className={styles.detailFootnote}><Check size={13} aria-hidden="true" /> Your progress and notes stay with your course.</p>
 
       {activeVideo && activeVideo.isAvailable && <VideoPlayerModal video={activeVideo} onClose={() => setPlayingVideo(null)} onMarkCompleted={handleMarkCompleted} onOpenNotes={handleOpenNotes} />}
-      {chatEnabled && chatVideo && <LearningWorkspace key={chatVideo.id} videoId={chatVideo.id} youtubeVideoId={chatVideo.youtubeVideoId} videoTitle={chatVideo.title} courseId={course.id} initialTab="chat" onClose={() => setChatVideo(null)} />}
+      {chatEnabled && chatVideo && <Suspense fallback={<p role="status">Loading workspace…</p>}><LearningWorkspace key={chatVideo.id} videoId={chatVideo.id} youtubeVideoId={chatVideo.youtubeVideoId} videoTitle={chatVideo.title} courseId={course.id} initialTab="chat" onClose={() => setChatVideo(null)} /></Suspense>}
       {noteModalVideo && <NotesModal video={noteModalVideo} onClose={handleCloseNotes} onHasContentChange={handleHasContentChange} />}
       {aiModalVideo && aiContentData && <AIContentModal video={aiModalVideo} content={aiContentData} onClose={handleCloseAiContent} />}
       {showDeleteConfirm && <dialog ref={deleteDialogRef} className={styles.deleteDialog} aria-labelledby="delete-course-heading" onCancel={(event) => { event.preventDefault(); if (!deleting) setShowDeleteConfirm(false); }}>

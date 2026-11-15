@@ -1,9 +1,6 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
+import { useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSession } from "@/components/auth/AuthProvider";
 import { ArrowUpRight, BookOpen, Check, ChevronRight, FileText, LayoutDashboard, LogIn, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import styles from "./LayoutChrome.module.css";
@@ -22,7 +19,7 @@ const navItems = [
 type LearningProgress = { totalVideosCompleted: number; totalVideosCount: number };
 
 export default function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }: SidebarProps) {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
   const { data: session } = useSession();
   const [progress, setProgress] = useState<LearningProgress | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -87,29 +84,29 @@ export default function Sidebar({ isOpen, onClose, collapsed, onToggleCollapse }
         </div>
         <nav className={styles.navigation} aria-label="Main navigation">
           {navItems.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} onClick={onClose} className={styles.navItem} data-active={isActive(href)} aria-current={isActive(href) ? "page" : undefined} aria-label={label} title={compact ? label : undefined}>
+            <Link key={href} to={href} onClick={onClose} className={styles.navItem} data-active={isActive(href)} aria-current={isActive(href) ? "page" : undefined} aria-label={label} title={compact ? label : undefined}>
               <Icon size={19} strokeWidth={1.7} aria-hidden="true" /><span className={styles.navLabel}>{label}</span><span className={styles.activeDot} aria-hidden="true" />
             </Link>
           ))}
         </nav>
         <div className={styles.sidebarBottom}>
-          <Link href="/settings" onClick={onClose} className={styles.navItem} data-active={isActive("/settings")} aria-current={isActive("/settings") ? "page" : undefined} aria-label="Settings" title={compact ? "Settings" : undefined}><Settings size={19} strokeWidth={1.7} aria-hidden="true" /><span className={styles.navLabel}>Settings</span><span className={styles.activeDot} aria-hidden="true" /></Link>
+          <Link to="/settings" onClick={onClose} className={styles.navItem} data-active={isActive("/settings")} aria-current={isActive("/settings") ? "page" : undefined} aria-label="Settings" title={compact ? "Settings" : undefined}><Settings size={19} strokeWidth={1.7} aria-hidden="true" /><span className={styles.navLabel}>Settings</span><span className={styles.activeDot} aria-hidden="true" /></Link>
           {session?.user && progress && (
             <div className={styles.sidebarProgress} title={`${pct}% of your lessons completed`}>
               <div className={styles.progressHeading}><span className={styles.progressCaption}>Your learning journey</span><strong>{pct}%</strong></div>
               <progress value={pct} max={100} aria-label="Overall lesson completion" />
               <p><Check size={13} aria-hidden="true" /> {progress.totalVideosCompleted} of {progress.totalVideosCount} lessons completed</p>
-              <Link href="/courses" onClick={onClose} className={styles.progressAction}>Keep exploring <ArrowUpRight size={13} aria-hidden="true" /></Link>
+              <Link to="/courses" onClick={onClose} className={styles.progressAction}>Keep exploring <ArrowUpRight size={13} aria-hidden="true" /></Link>
             </div>
           )}
           <div className={styles.sidebarAccount}>
             {session?.user ? (
-              <Link href="/settings" onClick={onClose} className={styles.workspaceAccount} aria-label="Your workspace settings" title={compact ? session.user.name ?? "Your workspace" : undefined}>
-                <span className={styles.avatar}>{session.user.image ? <Image src={session.user.image} alt="" width={34} height={34} /> : session.user.name?.[0] ?? "U"}</span>
+              <Link to="/settings" onClick={onClose} className={styles.workspaceAccount} aria-label="Your workspace settings" title={compact ? session.user.name ?? "Your workspace" : undefined}>
+                <span className={styles.avatar}>{session.user.image ? <img loading="lazy" decoding="async" src={session.user.image} alt="" width={34} height={34} /> : session.user.name?.[0] ?? "U"}</span>
                 <span className={styles.accountText}><strong>{session.user.name ?? "Your workspace"}</strong><span>Personal workspace</span></span>
                 <ChevronRight size={14} className={styles.accountArrow} aria-hidden="true" />
               </Link>
-            ) : <Link href="/sign-in" onClick={onClose} className={styles.navItem} aria-label="Sign in"><LogIn size={18} aria-hidden="true" /><span className={styles.navLabel}>Sign in to your workspace</span></Link>}
+            ) : <Link to="/sign-in" onClick={onClose} className={styles.navItem} aria-label="Sign in"><LogIn size={18} aria-hidden="true" /><span className={styles.navLabel}>Sign in to your workspace</span></Link>}
           </div>
         </div>
       </aside>

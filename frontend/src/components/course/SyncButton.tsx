@@ -1,7 +1,5 @@
-"use client";
-
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRevalidator } from "react-router-dom";
 import { RefreshCw, CheckCircle2, AlertCircle, X } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,7 +102,7 @@ interface SyncButtonProps {
 }
 
 export default function SyncButton({ courseId, onSyncComplete }: SyncButtonProps) {
-  const router = useRouter();
+  const revalidator = useRevalidator();
   const [syncState, setSyncState] = useState<SyncState>({ kind: "idle" });
 
   const handleSync = useCallback(async () => {
@@ -128,16 +126,16 @@ export default function SyncButton({ courseId, onSyncComplete }: SyncButtonProps
       }
 
       setSyncState({ kind: "success", result: data as SyncResult });
-      // Refresh server data so the video list reflects additions/archives
-      router.refresh();
+      // Clear optimistic state, then reload the current course loader.
       onSyncComplete();
+      await revalidator.revalidate();
     } catch {
       setSyncState({
         kind: "error",
         message: "Network error — please check your connection and try again.",
       });
     }
-  }, [courseId, router, onSyncComplete, syncState.kind]);
+  }, [courseId, revalidator, onSyncComplete, syncState.kind]);
 
   const handleDismiss = useCallback(() => {
     setSyncState({ kind: "idle" });

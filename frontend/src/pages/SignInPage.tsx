@@ -1,14 +1,8 @@
-import { getSession } from "@/lib/backend";
-import { redirect } from "next/navigation";
+import { useSearchParams } from "react-router-dom";
 
-/**
- * Sign-in page — minimal, clean design.
- * Starts FastAPI's Google OAuth flow through the same-origin API rewrite.
- * Protected layouts redirect anonymous users here.
- */
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  if (await getSession()) redirect("/dashboard");
-  const { error } = await searchParams;
+export default function SignInPage() {
+  const [searchParams] = useSearchParams();
+  const error = searchParams.get("error");
   return (
     <div className="flex min-h-full items-center justify-center">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-8 shadow-sm">

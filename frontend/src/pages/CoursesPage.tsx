@@ -1,8 +1,5 @@
-"use client";
-
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
-import Image from "next/image";
+import { Link } from "react-router-dom";
 import { ArrowRight, ArrowUpDown, BookOpen, Check, CircleCheck, Clock3, Play, Plus, RefreshCw, Search, X } from "lucide-react";
 import styles from "@/components/course/Courses.module.css";
 
@@ -38,8 +35,8 @@ function CourseCard({ course }: { course: Course }) {
   const completed = state === "completed";
   return (
     <article className={styles.courseCard}>
-      <Link href={`/courses/${course.id}`} className={styles.cardImage} aria-label={`Open ${course.title}`}>
-        {course.thumbnailUrl ? <Image src={course.thumbnailUrl} alt="" fill sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 400px" className={styles.coverImage} /> : <BookOpen size={42} strokeWidth={1.2} aria-hidden="true" />}
+      <Link to={`/courses/${course.id}`} className={styles.cardImage} aria-label={`Open ${course.title}`}>
+        {course.thumbnailUrl ? <img loading="lazy" decoding="async" src={course.thumbnailUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} sizes="(max-width: 600px) 100vw, (max-width: 1200px) 50vw, 400px" className={styles.coverImage} /> : <BookOpen size={42} strokeWidth={1.2} aria-hidden="true" />}
         <span className={styles.imageOverlay} />
         <span className={styles.stateBadge} data-state={state}>{completed ? <Check size={11} aria-hidden="true" /> : <span />}{completed ? "Completed" : state === "in_progress" ? "In progress" : "Ready to start"}</span>
         <span className={styles.lessonCount}><Play size={10} fill="currentColor" aria-hidden="true" />{course._count.videos} lessons</span>
@@ -47,10 +44,10 @@ function CourseCard({ course }: { course: Course }) {
       </Link>
       <div className={styles.cardBody}>
         <p className={styles.overline}>YOUTUBE PLAYLIST</p>
-        <Link href={`/courses/${course.id}`} className={styles.cardTitle}><h2>{course.title}</h2></Link>
+        <Link to={`/courses/${course.id}`} className={styles.cardTitle}><h2>{course.title}</h2></Link>
         <p className={styles.timeLeft}>{completed ? <><CircleCheck size={13} aria-hidden="true" /> All lessons completed</> : course.remainingDurationSeconds > 0 ? <><Clock3 size={13} aria-hidden="true" />{timeLeft(course.remainingDurationSeconds)}</> : <><BookOpen size={13} aria-hidden="true" /> Learn at your own pace</>}</p>
         <div className={styles.cardProgress}><div><span>{course._count.completedVideos} of {course._count.videos} completed</span><strong>{pct}%</strong></div><progress value={pct} max={100} aria-label={`Completion for ${course.title}`} /></div>
-        <Link href={`/courses/${course.id}`} className={styles.cardAction} data-completed={completed}>{completed ? <CircleCheck size={15} aria-hidden="true" /> : <Play size={14} fill="currentColor" aria-hidden="true" />}{completed ? "Revisit course" : state === "in_progress" ? "Continue learning" : "Start learning"}<ArrowRight size={15} aria-hidden="true" /></Link>
+        <Link to={`/courses/${course.id}`} className={styles.cardAction} data-completed={completed}>{completed ? <CircleCheck size={15} aria-hidden="true" /> : <Play size={14} fill="currentColor" aria-hidden="true" />}{completed ? "Revisit course" : state === "in_progress" ? "Continue learning" : "Start learning"}<ArrowRight size={15} aria-hidden="true" /></Link>
       </div>
     </article>
   );
@@ -104,13 +101,13 @@ export default function CoursesClientPage() {
     <div className={styles.page}><div className={styles.inner}>
       <header className={styles.pageHeader}>
         <div><p className={styles.kicker}><span /> A LITTLE MORE CURIOUS, EVERY DAY</p><h1>Your course library<span>.</span></h1><p>Your interests, organized. Pick a course and make it yours.</p></div>
-        <Link href="/dashboard#dashboard-import" className={styles.primaryButton}><Plus size={16} aria-hidden="true" /> Import playlist</Link>
+        <Link to="/dashboard#dashboard-import" className={styles.primaryButton}><Plus size={16} aria-hidden="true" /> Import playlist</Link>
       </header>
       {!loading && !error && courses.length > 0 && <div className={styles.libraryOverview}><span><BookOpen size={15} aria-hidden="true" /><strong>{courses.length}</strong> courses</span><span><Play size={14} aria-hidden="true" /><strong>{counts.in_progress}</strong> in progress</span><span><CircleCheck size={15} aria-hidden="true" /><strong>{courses.reduce((sum, course) => sum + course._count.completedVideos, 0)}</strong> lessons completed</span></div>}
       {loading ? <div className={styles.courseGrid} role="status" aria-label="Loading courses">{[0,1,2].map((key) => <div className={styles.skeletonCard} key={key}><div /><span /><span /><span /></div>)}</div> : error ? (
         <div className={styles.emptyState} role="alert"><span className={styles.emptyIcon}><RefreshCw size={25} aria-hidden="true" /></span><h2>Let’s try that again.</h2><p>We couldn’t load your courses. Check your connection and give it another try.</p><button onClick={() => setAttempt((value) => value + 1)} className={styles.primaryButton}><RefreshCw size={15} aria-hidden="true" /> Try again</button></div>
       ) : courses.length === 0 ? (
-        <div className={styles.emptyState}><span className={styles.emptyIcon}><BookOpen size={28} aria-hidden="true" /></span><h2>A whole world to learn.</h2><p>Bring your first YouTube playlist here and turn your curiosity into a course.</p><Link href="/dashboard#dashboard-import" className={styles.primaryButton}><Plus size={15} aria-hidden="true" /> Import your first playlist</Link></div>
+        <div className={styles.emptyState}><span className={styles.emptyIcon}><BookOpen size={28} aria-hidden="true" /></span><h2>A whole world to learn.</h2><p>Bring your first YouTube playlist here and turn your curiosity into a course.</p><Link to="/dashboard#dashboard-import" className={styles.primaryButton}><Plus size={15} aria-hidden="true" /> Import your first playlist</Link></div>
       ) : (
         <>
           <div className={styles.toolbar}>

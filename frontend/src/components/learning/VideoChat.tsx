@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight, ArrowUp, BookOpen, Check, ChevronDown, ExternalLink,

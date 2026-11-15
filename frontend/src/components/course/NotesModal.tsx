@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useCallback } from "react";
 import NoteEditor, { type NoteEditorHandle } from "../notes/NoteEditor";
 import type { Video } from "./types";

@@ -1,10 +1,7 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { useSession } from "@/components/auth/AuthProvider";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
+import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, BookOpen, Check, CircleCheck, Clock3, FileText, Link2, LoaderCircle, Play, Plus, Sparkles, SquarePlay } from "lucide-react";
 import { formatDuration, formatTimeAgo } from "@/lib/utils";
 import styles from "./DashboardPage.module.css";
@@ -36,8 +33,8 @@ function ContinueLearning({ video, loading }: { video: ContinueVideo | null; loa
       <div className={styles.sectionHeading}><h2 id="continue-heading">Pick up where you left off</h2><span className={styles.eyebrow}>CONTINUE LEARNING</span></div>
       {loading ? <div className={`${styles.skeleton} ${styles.heroSkeleton}`} role="status" aria-label="Loading your next lesson" /> : video ? (
         <article className={styles.continueCard}>
-          <Link href={`/courses/${video.course.id}`} className={styles.heroImage} aria-label={`Continue ${video.title}`}>
-            {video.thumbnailUrl ? <Image src={video.thumbnailUrl} alt="" fill sizes="(max-width: 600px) 100vw, 680px" className={styles.thumbnail} /> : <BookOpen size={56} aria-hidden="true" />}
+          <Link to={`/courses/${video.course.id}`} className={styles.heroImage} aria-label={`Continue ${video.title}`}>
+            {video.thumbnailUrl ? <img loading="lazy" decoding="async" src={video.thumbnailUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} sizes="(max-width: 600px) 100vw, 680px" className={styles.thumbnail} /> : <BookOpen size={56} aria-hidden="true" />}
             <span className={styles.imageShade} />
             <span className={styles.resumePill}><span /> IN PROGRESS</span>
             <span className={styles.playCircle}><Play size={25} fill="currentColor" aria-hidden="true" /></span>
@@ -47,7 +44,7 @@ function ContinueLearning({ video, loading }: { video: ContinueVideo | null; loa
             <p className={styles.courseLabel}>{video.course.title}</p><h3>{video.title}</h3>
             <div className={styles.lessonProgress}><div><span>Your progress</span><strong>{progress}%</strong></div><progress value={progress} max={100} aria-label="Current video progress" /></div>
             <div className={styles.heroFooter}>
-              <Link href={`/courses/${video.course.id}`} className={styles.primaryButton}><Play size={15} fill="currentColor" aria-hidden="true" /> Continue learning <ArrowRight size={16} aria-hidden="true" /></Link>
+              <Link to={`/courses/${video.course.id}`} className={styles.primaryButton}><Play size={15} fill="currentColor" aria-hidden="true" /> Continue learning <ArrowRight size={16} aria-hidden="true" /></Link>
               <span className={styles.savedPosition}><Check size={14} aria-hidden="true" /> Progress saved</span>
             </div>
           </div>
@@ -56,7 +53,7 @@ function ContinueLearning({ video, loading }: { video: ContinueVideo | null; loa
         <div className={styles.emptyCard}>
           <span className={styles.emptyIcon}><Play size={24} aria-hidden="true" /></span><h3>Your next lesson is waiting.</h3>
           <p>Open a course and start a video. You can pick it up here next time.</p>
-          <Link href="/courses" className={styles.primaryButton}>Explore your courses <ArrowRight size={16} aria-hidden="true" /></Link>
+          <Link to="/courses" className={styles.primaryButton}>Explore your courses <ArrowRight size={16} aria-hidden="true" /></Link>
         </div>
       )}
     </section>
@@ -85,11 +82,11 @@ function QuickStats({ stats, loading }: { stats: LearningStats | null; loading: 
 function RecentlyWatched({ videos, loading }: { videos: ContinueVideo[]; loading: boolean }) {
   return (
     <section aria-labelledby="recent-heading" className={styles.recentSection}>
-      <div className={styles.sectionHeading}><h2 id="recent-heading">Recently watched</h2><Link href="/courses" className={styles.textLink}>All courses <ArrowUpRight size={14} aria-hidden="true" /></Link></div>
+      <div className={styles.sectionHeading}><h2 id="recent-heading">Recently watched</h2><Link to="/courses" className={styles.textLink}>All courses <ArrowUpRight size={14} aria-hidden="true" /></Link></div>
       {loading ? <div className={`${styles.skeleton} ${styles.recentSkeleton}`} role="status" aria-label="Loading recent lessons" /> : videos.length ? (
         <div className={styles.recentList}>{videos.slice(0, 4).map((video) => (
-          <Link key={video.id} href={`/courses/${video.course.id}`} className={styles.recentItem}>
-            <div className={styles.recentImage}>{video.thumbnailUrl ? <Image src={video.thumbnailUrl} alt="" fill sizes="96px" className={styles.thumbnail} /> : <Play size={22} aria-hidden="true" />}</div>
+          <Link key={video.id} to={`/courses/${video.course.id}`} className={styles.recentItem}>
+            <div className={styles.recentImage}>{video.thumbnailUrl ? <img loading="lazy" decoding="async" src={video.thumbnailUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} sizes="96px" className={styles.thumbnail} /> : <Play size={22} aria-hidden="true" />}</div>
             <div className={styles.recentInfo}><p>{video.course.title}</p><h3>{video.title}</h3><span><Clock3 size={12} aria-hidden="true" /> {formatTimeAgo(video.updatedAt)}</span></div>
             <ArrowUpRight size={17} className={styles.recentArrow} aria-hidden="true" />
           </Link>
@@ -100,7 +97,7 @@ function RecentlyWatched({ videos, loading }: { videos: ContinueVideo[]; loading
 }
 
 function ImportPlaylist() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +110,7 @@ function ImportPlaylist() {
       const res = await fetch("/api/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: url.trim() }) });
       const data = await res.json().catch(() => null);
       if ((res.ok || res.status === 409) && typeof data?.courseId === "string") {
-        router.push(`/courses/${data.courseId}`);
+        navigate(`/courses/${data.courseId}`);
         return;
       }
       setError(typeof data?.error === "string" ? data.error : "Could not import this playlist. Please try again.");
@@ -148,7 +145,7 @@ function LearningProgress({ stats }: { stats: LearningStats | null }) {
         <div className={styles.progressRing}><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" /><circle cx="50" cy="50" r="42" pathLength="100" strokeDasharray={`${pct} 100`} /></svg><strong>{pct}<span>%</span></strong></div>
         <div><strong>{stats.completedVideos} lessons down</strong><p>Every lesson brings you<br />a little further.</p></div>
       </div>
-      <Link href="/study-library" className={styles.progressLink}>Revisit your notes & summaries <ArrowRight size={15} aria-hidden="true" /></Link>
+      <Link to="/study-library" className={styles.progressLink}>Revisit your notes & summaries <ArrowRight size={15} aria-hidden="true" /></Link>
     </section>
   );
 }
@@ -188,7 +185,7 @@ export default function DashboardPage() {
     <div className={styles.dashboard}><div className={styles.pageInner}>
       <header className={styles.welcome}>
         <div><p className={styles.kicker}><span /> YOUR LEARNING SPACE</p><h1>Welcome back, {firstName}<span className={styles.headingDot}>.</span></h1><p>A little focus today. A little further tomorrow.</p></div>
-        <Link href="/courses" className={styles.browseButton}>Your course library <ArrowUpRight size={16} aria-hidden="true" /></Link>
+        <Link to="/courses" className={styles.browseButton}>Your course library <ArrowUpRight size={16} aria-hidden="true" /></Link>
       </header>
       {fetchError && <div className={styles.errorBanner} role="alert"><p>Some of your learning data could not be loaded.</p><button onClick={() => setAttempt((value) => value + 1)} disabled={loading}>{loading ? "Loading…" : "Try again"}</button></div>}
       <QuickStats stats={stats} loading={loading} />

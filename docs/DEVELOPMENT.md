@@ -8,7 +8,7 @@ On a fresh checkout, copy `frontend/.env.example` to `frontend/.env.local` and `
 
 | File | Loaded by | Contents |
 | --- | --- | --- |
-| `frontend/.env.local` | Next.js | Backend origin and public application version |
+| `frontend/.env.local` | Vite | Node-side `BACKEND_URL` proxy target and browser-visible `VITE_APP_VERSION` |
 | `backend/.env` | FastAPI, Alembic, backend scripts | Active database, Google OAuth, provider keys, session settings |
 | `backend/.env.legacy.local` | Database safety preflight only | Preserved old settings used to reject the archived database target |
 
@@ -28,7 +28,7 @@ In terminal two, from the repository root:
 npm.cmd run dev
 ```
 
-Open `http://localhost:3000`. Use that hostname consistently for Google callbacks and cookies. The OAuth redirect URI remains `http://localhost:3000/api/auth/callback/google`. Next.js forwards `/api/*` to FastAPI and server-side fetches use `BACKEND_URL`.
+Open `http://localhost:3000`. Use that hostname consistently for Google callbacks and cookies. The OAuth redirect URI remains `http://localhost:3000/api/auth/callback/google`. Vite forwards `/api/*` to FastAPI using the Node-side `BACKEND_URL`. The browser never receives that variable. Only `VITE_` variables are public; never give secrets that prefix.
 
 The custom event loop is required for async psycopg on Windows. `--no-access-log` keeps OAuth query parameters out of Uvicorn logs. Application logs provide sanitized request IDs, route templates, durations, and statuses.
 
@@ -43,7 +43,7 @@ npm.cmd run build
 npm.cmd run start
 ```
 
-The root scripts run in `frontend/`. Direct workspace commands also work, for example `npm.cmd run dev --workspace @focustube/frontend`. Extra startup flags can be forwarded with `npm.cmd run start -- --hostname 127.0.0.1 --port 3000`. Stop the production frontend before rebuilding its generated output.
+The root scripts run in `frontend/`. Direct workspace commands also work, for example `npm.cmd run dev --workspace @focustube/frontend`. Extra startup flags can be forwarded with `npm.cmd run start -- --host 127.0.0.1 --port 3000`. Build output is `frontend/dist/`. `start` runs Vite preview for local verification, not production hosting. Port 3000 is strict so a port conflict cannot silently change OAuth/cookie origins. Fonts are local npm assets.
 
 From `backend/`:
 
@@ -63,21 +63,23 @@ Run these from `backend/` only when the respective services are configured:
 | --- | --- |
 | `python -m scripts.check_database` | Read-only target/schema/session preflight; refuses the archived database when its preserved URL is available |
 | `python -m scripts.check_gemini` | Sends a short normal-text prompt to configured models; no database access |
-| `python -m scripts.smoke_test` | Creates a temporary account/course/video, checks core APIs through Next.js, and removes its own account/records |
+| `python -m scripts.smoke_test` | Creates a temporary account/course/video, checks core APIs through the frontend API proxy, and removes its own account/records |
 | `python -m scripts.diagnose_features` | Reads feature state and tests the image/transcript/AI provider path; consumes provider quota |
-| `python -m scripts.diagnose_features --verify-api` | Generates/reuses AI through Next.js using a temporary account, checks storage/cache, then removes its account; successful shared AI cache remains |
+| `python -m scripts.diagnose_features --verify-api` | Generates/reuses AI through the frontend API proxy using a temporary account, checks storage/cache, then removes its account; successful shared AI cache remains |
 
 Use `.\.venv\Scripts\python.exe` in place of `python` unless the environment is already activated. The last command also accepts `--fresh` to choose an owned course video without an AI cache row. Live checks must never be imported into ordinary tests or run automatically during installation/startup.
 
 ## Troubleshooting
 
 - Frontend cannot reach API: confirm port 8000 is listening, `frontend/.env.local` has the expected `BACKEND_URL`, and `/api/health/ready` succeeds through port 3000.
-- Missing Google image: check the image URL and whether the Next.js process can reach Google; profile images pass through the image optimizer.
+- Missing Google image: images now load directly in the browser; check the source URL, browser network access and host CSP. There is no Next.js image optimizer.
 - AI failure: check the safe reason code. Provider availability can vary between requests; keep the request/transcript/model constant when comparing implementations. Never infer a permanent model incompatibility from a single 503.
-- Build cannot download fonts: grant the build process network access. Do not silently replace fonts as part of an infrastructure fix.
-- Low disk space: stop the relevant frontend before cleaning its ignored `frontend/.next/` output. Do not delete source, database files, or user notes as build caches.
+- Missing build dependency: run `npm.cmd ci` at root. Geist font files are installed with npm and bundled locally; the build does not fetch Google Fonts.
+- Low disk space: stop the relevant frontend before cleaning its ignored `frontend/dist/` output. Do not delete source, database files, or user notes as build caches.
 
-Deployment is deferred. Any future hosting configuration must use `frontend/` as the Next.js application directory and keep backend credentials on the backend service.
+Deployment is separate from the migration. Publish `frontend/dist/` as static assets, configure same-origin `/api/*` forwarding before the `index.html` SPA fallback, and keep backend credentials on FastAPI. `BACKEND_URL` configures only the local Vite proxy; setting it on a static host does not create production rewrites. See the [hosting guide](DEPLOYMENT_GUIDE.md).
+
+After a build, `node frontend/scripts/check-proxy.mjs` from root starts an isolated mock HTTP backend and ephemeral Vite dev/preview servers, checks deep links, assets, cookie/Origin/body forwarding, redirects, error statuses and sanitized failure logs, then closes all servers. It uses no real accounts, database or providers.
 
 ## Video chat development
 
@@ -91,4 +93,4 @@ Run `npm.cmd run test` from root for chat interaction tests. Backend ordinary py
 .\.venv\Scripts\python.exe -m scripts.smoke_rag
 ```
 
-`check_rag` checks the active target/pgvector availability and local embedding inference. `verify_rag_postgres` creates/reuses dedicated database `focustube_rag_test` on the confirmed active server, applies additive migrations and checks native vectors/claims/throttling with mocked providers. It removes its temporary rows and retains its schema/database. `smoke_rag` uses temporary accounts, the active database and real providers, retaining the successful shared index. It tests ASGI HTTP APIs directly; it does not replace browser or Next.js rewrite verification. `check_local_rag` prepares/retrieves a saved transcript on the guarded active database with local embeddings, removes its temporary account, and retains the rebuilt shared index; it makes no Gemini/Supadata calls. None uses the archived database. No live checks run during installation or ordinary tests.
+`check_rag` checks the active target/pgvector availability and local embedding inference. `verify_rag_postgres` creates/reuses dedicated database `focustube_rag_test` on the confirmed active server, applies additive migrations and checks native vectors/claims/throttling with mocked providers. It removes its temporary rows and retains its schema/database. `smoke_rag` uses temporary accounts, the active database and real providers, retaining the successful shared index. It tests ASGI HTTP APIs directly; it does not replace browser or frontend proxy verification. `check_local_rag` prepares/retrieves a saved transcript on the guarded active database with local embeddings, removes its temporary account, and retains the rebuilt shared index; it makes no Gemini/Supadata calls. None uses the archived database. No live checks run during installation or ordinary tests.

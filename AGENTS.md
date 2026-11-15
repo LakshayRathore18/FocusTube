@@ -4,14 +4,9 @@
 > **DO NOT DUPLICATE IMPLEMENTATION DETAILS**: To check database schemas or code implementation details, read the files directly using your tools rather than relying on cached explanations here.
 > **HUMAN GUIDE**: Read [the project structure](docs/PROJECT_STRUCTURE.md) and [development guide](docs/DEVELOPMENT.md).
 
-<!-- BEGIN:nextjs-agent-rules -->
-## ⚠️ Next.js Version Warning
+## Frontend framework
 
-This is **not** the Next.js version you may know from training data. This project uses **Next.js 16** (Turbopack), which has breaking changes — APIs, conventions, and file structure may all differ from older versions.
-
-- **Always** read the relevant guide in `node_modules/next/dist/docs/` before writing any code.
-- **Heed deprecation notices** — what worked in Next.js 13/14/15 may not work here.
-<!-- END:nextjs-agent-rules -->
+The frontend uses React with Vite and React Router. See `docs/DEVELOPMENT.md` and `docs/DEPLOYMENT_GUIDE.md` for setup and hosting requirements.
 
 ---
 <!-- Important guideline -->
@@ -22,15 +17,15 @@ Prefer non-destructive migration paths always: default values for new required c
 If you are ever unsure whether a command is destructive, treat it as destructive and ask first.
 
 
-## 1. Current architecture (2026-11-04)
+## 1. Current architecture (2026-11-15)
 
 Read `README.md`, `docs/PROJECT_STRUCTURE.md`, `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/MIGRATION_STATUS.md`, and the latest continuation note in `docs/development/SESSION_HANDOFF.md`. Actual source files are authoritative.
 
-- Next.js 16 / React 19 lives in `frontend/`. The root npm workspace forwards dev/build/start/lint/typecheck commands to this application. Browser `/api/*` calls are rewritten to FastAPI on port 8000.
+- React 19 / Vite 8 / React Router 7 lives in `frontend/`. Root npm commands forward to this workspace; `start` is local Vite preview, not production hosting. Routes/loaders live in `frontend/src/routes.tsx`, pages in `frontend/src/pages/`. Vite proxies `/api/*` to FastAPI on port 8000 locally; production hosting must provide that proxy and an `index.html` SPA fallback.
 - FastAPI owns Google OAuth/OIDC, opaque database sessions, all business APIs, SQLAlchemy/psycopg database access, YouTube, Supadata transcripts, and Gemini.
 - Current models are in `backend/app/models.py`; initial Alembic migration is `backend/migrations/versions/0001_initial.py`.
 - Auth.js, Prisma and the Next.js business API route handlers were removed from the active implementation. Do not restore them based on historical docs.
-- Server auth/fetch helpers are in `frontend/src/lib/backend.ts`; client auth state is in `frontend/src/components/auth/AuthProvider.tsx`.
+- Browser API/session helpers are in `frontend/src/lib/backend.ts`; root-loader-backed auth state is in `frontend/src/components/auth/AuthProvider.tsx`. Never restore Next.js server cookies, server components or Auth.js. React Router loaders use request cancellation and no-store same-origin fetches.
 - API JSON preserves camelCase fields and ownership checks. Shared AI content requires an owned video before cache access or generation; unlocks belong to each user's video.
 
 ## 2. Safety and scope
@@ -46,7 +41,7 @@ Read `README.md`, `docs/PROJECT_STRUCTURE.md`, `docs/ARCHITECTURE.md`, `docs/API
 
 ## 3. Verification and conventions
 
-Read relevant installed Next.js guides before writing frontend code, as required above. Use async route params/cookies and no-store user-specific server fetches. Backend session/ownership checks remain authoritative when frontend layouts are reused during navigation.
+Consult the installed/current Vite and React Router guidance before changing routing/tooling. Use abortable no-store same-origin loaders; revalidate route data after mutations. Backend session/ownership checks remain authoritative. `BACKEND_URL` is Node-side only; only non-secret public settings such as `VITE_APP_VERSION` may use the `VITE_` prefix.
 
 From root: `npm.cmd run typecheck`, `npm.cmd run lint`, `npm.cmd run build`.
 

@@ -36,7 +36,7 @@ Watch lessons, track your progress, take rich text notes, and study with AI summ
 
 | Layer | Technologies |
 | --- | --- |
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| Frontend | React 19, Vite 8, React Router 7, TypeScript, Tailwind CSS 4 |
 | Notes editor | Tiptap |
 | Backend | FastAPI, Python 3.12+, Uvicorn |
 | Database | PostgreSQL / Neon, SQLAlchemy, psycopg, Alembic |
@@ -45,14 +45,14 @@ Watch lessons, track your progress, take rich text notes, and study with AI summ
 | Video retrieval | pgvector, local MiniLM embeddings through FastEmbed/ONNX |
 | Checks | ESLint, TypeScript, Vitest, Ruff, pytest |
 
-Next.js handles the interface and forwards browser `/api/*` requests to FastAPI. FastAPI owns authentication, authorization, database access, and provider calls. Database and provider credentials stay on the backend.
+React handles the interface and browser navigation. Vite forwards `/api/*` to FastAPI in development and local preview; production hosting must configure that proxy separately. FastAPI owns authentication, authorization, database access, and provider calls. Database and provider credentials stay on the backend.
 
 ## Project structure
 
 ```text
 focustube/
-├── frontend/              Next.js application
-│   ├── src/app/           Pages, layouts, and styles
+├── frontend/              React / Vite application
+│   ├── src/pages/         Route page components (routes.tsx defines routing)
 │   ├── src/components/    UI grouped by feature
 │   ├── src/lib/           Frontend helpers and backend integration
 │   ├── public/            Static assets
@@ -76,7 +76,7 @@ The commands below use **Windows PowerShell** and native processes; Docker is no
 
 ### 1. Prerequisites
 
-- Node.js compatible with Next.js 16, with npm.
+- Node.js 20.19+ or 22.12+ (a supported Node 22 release is recommended), with npm.
 - Python **3.12 or newer** and `uv`.
 - A separate PostgreSQL database, such as a new Neon database. Video chat also requires pgvector support.
 - Google OAuth credentials, a YouTube Data API key, and Supadata/Gemini API keys for transcript and AI features.
@@ -109,7 +109,7 @@ In `frontend/.env.local`:
 
 ```dotenv
 BACKEND_URL=http://127.0.0.1:8000
-NEXT_PUBLIC_APP_VERSION=2.0.0
+VITE_APP_VERSION=2.0.0
 ```
 
 In `backend/.env`, configure the following:
@@ -216,7 +216,7 @@ npm run test
 npm run build
 ```
 
-To serve a production frontend build locally, run `npm run start` after a successful build and keep the backend running separately. Builds download the configured Google fonts and need network access.
+To preview the production build locally, run `npm run start` after a successful build and keep the backend running separately. Vite writes static output to `frontend/dist/`; preview is not a production server. Geist fonts are installed with npm and bundled locally, so builds do not fetch Google Fonts.
 
 From `backend/`:
 
@@ -226,7 +226,7 @@ From `backend/`:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Backend tests use isolated temporary SQLite databases and mocked providers. They do not prove real PostgreSQL migration, locking/concurrency, Google OAuth, or provider behavior. See [verification status](docs/MIGRATION_STATUS.md) for recorded results, the existing frontend lint backlog, and outstanding manual checks.
+Backend tests use isolated temporary SQLite databases and mocked providers. They do not prove real PostgreSQL migration, locking/concurrency, Google OAuth, or provider behavior. See [verification status](docs/MIGRATION_STATUS.md) for recorded results, current check results and outstanding manual checks.
 
 ## Troubleshooting
 
@@ -237,7 +237,7 @@ Backend tests use isolated temporary SQLite databases and mocked providers. They
 | Database connection fails | Replace the template URL, retain required TLS parameters, and confirm migrations against the intended target. |
 | Video chat needs preparation | Download the local embedding model, enable RAG, restart the backend, and prepare the selected video. |
 | AI request fails or hits quota | Check provider configuration, quota, and the displayed error. Local embeddings do not remove Gemini generation limits. |
-| Build cannot download fonts | Allow network access for the Next.js build process. |
+| Deep links fail after hosting | Configure a fallback to `index.html` after the `/api/*` proxy rule. |
 
 For more operational checks, see the [development guide](docs/DEVELOPMENT.md).
 
@@ -245,7 +245,7 @@ For more operational checks, see the [development guide](docs/DEVELOPMENT.md).
 
 The deployed app is available at **[focustube-v2.vercel.app](https://focustube-v2.vercel.app/)**.
 
-For hosting changes or your own deployment, follow the [deployment guide](docs/DEPLOYMENT_GUIDE.md). The Next.js application lives in `frontend/`; FastAPI runs as a separate backend service. Keep provider/database credentials on that service and configure HTTPS origins, secure cookies, and the production Google OAuth callback for your deployment.
+For hosting changes or your own deployment, follow the [deployment guide](docs/DEPLOYMENT_GUIDE.md). The React source lives in `frontend/` and its static build is `frontend/dist/`; FastAPI runs separately. Production hosting needs same-origin `/api/*` forwarding and a fallback to `index.html` for frontend routes. Keep provider/database credentials on that service and configure HTTPS origins, secure cookies, and the production Google OAuth callback for your deployment.
 
 ## Documentation
 
@@ -262,4 +262,4 @@ For hosting changes or your own deployment, follow the [deployment guide](docs/D
 | [Deployment guide](docs/DEPLOYMENT_GUIDE.md) | Hosting setup and safe deployment changes |
 | [Session handoff](docs/development/SESSION_HANDOFF.md) | Development continuation notes |
 
-Historical Prisma/Auth.js material is preserved under `docs/archive/legacy/`. Use the current guides and source files for the active Next.js + FastAPI implementation.
+Historical Prisma/Auth.js material is preserved under `docs/archive/legacy/`. Use the current guides and source files for the active React + FastAPI implementation.

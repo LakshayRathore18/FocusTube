@@ -27,7 +27,7 @@ Course-wide retrieval, personal-note retrieval, timestamps, saved conversations,
 ## 2. Current integration points
 
 - FastAPI owns authentication, ownership checks, database access and provider credentials.
-- Next.js renders the application and forwards browser `/api/*` requests to FastAPI.
+- React renders the application; Vite forwards browser `/api/*` to FastAPI locally, and production hosting must supply the same proxy.
 - `AIContent.transcript` already stores full shared transcripts when AI generation has fetched them. Imported videos may not have transcripts yet.
 - Summary generation currently sends only the first 20,000 transcript characters to Gemini. RAG must index the full transcript instead.
 - Supadata ingestion currently flattens captions into text and discards timing. First-version citations therefore link to the video and quote passages, without timestamp claims.
@@ -38,7 +38,7 @@ Course-wide retrieval, personal-note retrieval, timestamps, saved conversations,
 Request flow:
 
 ```text
-Next.js chat
+React chat
   -> FastAPI session authentication and video ownership check
   -> retrieve passages from the selected video's prepared transcript
   -> Gemini generates an answer using those passages
@@ -142,7 +142,7 @@ Add a **Chat** tab to the existing video learning workspace. Keep it enabled ind
 - Keep failed questions retryable without adding duplicate successful conversation turns.
 - Hide the Chat entry when the backend feature is disabled, using a non-secret feature capability response.
 
-Read the installed Next.js guidance before frontend changes. Preserve existing API rewrites and authentication helpers.
+Preserve same-origin API proxying, loader-backed authentication and ownership checks. See `DEVELOPMENT.md` for frontend conventions.
 
 ## 7. Problems and safeguards
 

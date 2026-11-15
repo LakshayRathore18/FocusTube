@@ -1,6 +1,6 @@
 # FastAPI contracts
 
-Browser requests use same-origin `/api/*` URLs through Next.js. FastAPI owns all endpoints below. Live OpenAPI schemas are at `http://127.0.0.1:8000/docs` when the backend runs.
+Browser requests use same-origin `/api/*` URLs through Vite locally and the configured frontend hosting proxy in production. FastAPI owns all endpoints below. Live OpenAPI schemas are at `http://127.0.0.1:8000/docs` when the backend runs.
 
 Authenticated endpoints require the opaque `focustube_session` cookie. Mutations also require `Origin` to exactly match `FRONTEND_ORIGIN`. Errors use `{ "error": "message" }`; invalid input returns 400, missing/expired authentication 401, Origin violations 403, and missing/unauthorized resources 403 or 404. Responses carry `Cache-Control: no-store` and `X-Request-ID`.
 
