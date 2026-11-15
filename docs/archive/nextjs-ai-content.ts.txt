@@ -1,0 +1,287 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { db } from "@/lib/db";
+import { getTranscript } from "@/lib/transcript";
+import { geminiProvider } from "@/lib/ai/gemini";
+
+// Allow this route to run for up to 60 seconds (Vercel max for Hobby plans).
+// Fetching transcripts from YouTube and waiting for Gemini AI can take 10-20+ seconds.
+export const maxDuration = 60;
+
+/**
+ * =====================================================================
+ * FILE PURPOSE: AI Content Generator for YouTube Videos
+ * =====================================================================
+ *
+ * What this file does:
+ * When a user clicks "Generate AI Notes / Quiz" on a video, this API route:
+ * 1. Checks if AI content for this YouTube video was already generated before.
+ *    - If YES: Reuses it immediately! (Saves time, saves AI API costs).
+ *    - If NO: Fetches the video transcript, sends it to Gemini AI, and saves the result.
+ * 2. Unlocks the content for the current user so their dashboard shows it's ready.
+ *
+ * Why AI content is shared globally:
+ * The content of a YouTube video never changes. If User A generates notes for
+ * video "xyz", User B watching the same video gets the exact same notes instantly
+ * without calling Gemini again.
+ *
+ * Handling multiple clicks at the same time (Concurrency):
+ * If two people request the same video at the exact same second, only ONE
+ * request actually talks to Gemini. The other is told "pending" so it can wait.
+ *
+ * API Response Shapes:
+ * - { status: "pending" }               -> Generation is in progress, please wait.
+ * - { status: "ready", summary, quiz }  -> Ready to display to user.
+ * - { status: "failed", reason }        -> Something went wrong (e.g. no captions).
+ * =====================================================================
+ */
+export async function POST(request: NextRequest) {
+  // -------------------------------------------------------------
+  // 1. Verify User Authentication
+  // -------------------------------------------------------------
+  // Make sure the user is logged in before using AI features.
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // -------------------------------------------------------------
+  // 2. Read and Validate Request Data
+  // -------------------------------------------------------------
+  // We expect: { youtubeVideoId: "...", courseId: "..." (optional) }
+  let body: { youtubeVideoId: string; courseId?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!body.youtubeVideoId || typeof body.youtubeVideoId !== "string") {
+    return NextResponse.json(
+      { error: "Missing or invalid 'youtubeVideoId' field" },
+      { status: 400 }
+    );
+  }
+
+  const { youtubeVideoId, courseId } = body;
+  const now = new Date();
+
+  // -------------------------------------------------------------
+  // Helper: unlockForCurrentUser()
+  // -------------------------------------------------------------
+  // Marks the current user's video record as "unlocked" with today's timestamp.
+  // This lets the UI know this specific user has access to view the notes/quiz.
+  async function unlockForCurrentUser() {
+    const video = courseId
+      ? await db.video.findFirst({
+          where: {
+            youtubeVideoId,
+            courseId,
+            course: { userId },
+          },
+          select: { id: true },
+        })
+      : await db.video.findFirst({
+          where: {
+            youtubeVideoId,
+            course: { userId },
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true },
+        });
+    if (video) {
+      await db.video.update({
+        where: { id: video.id },
+        data: { aiContentUnlockedAt: now },
+      });
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 3. Check if Content Already Exists in Database
+  // -------------------------------------------------------------
+  const existing = await db.aIContent.findUnique({
+    where: { youtubeVideoId },
+    select: {
+      id: true,
+      status: true,
+      summary: true,
+      quiz: true,
+      attempts: true,
+      lastAttemptedAt: true,
+    },
+  });
+
+  if (existing) {
+    switch (existing.status) {
+      case "ready":
+        // Case A: Already done! Unlock for this user and return the cached content.
+        await unlockForCurrentUser();
+        return NextResponse.json({
+          status: "ready",
+          summary: existing.summary ? JSON.parse(existing.summary) : null,
+          quiz: existing.quiz,
+        });
+
+      case "pending":
+        // Case B: Currently being generated right now by another request. Tell client to wait.
+        return NextResponse.json({ status: "pending" });
+
+      case "failed":
+        // Case C: Failed in the past. If failed 3 or more times, stop trying.
+        if (existing.attempts >= 3) {
+          return NextResponse.json({
+            status: "failed",
+            reason: "max_attempts",
+          });
+        }
+        // If tried less than 3 times, don't return yet — fall through and try again!
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Helper: claimGeneration()
+  // -------------------------------------------------------------
+  // Ensures only ONE request at a time generates notes for this video.
+  // Returns:
+  //   - { claimed: true, rowId: "..." } if this request won the right to generate
+  //   - { claimed: false, status: "pending" } if another request beat us to it
+  async function claimGeneration(): Promise<
+    | { claimed: true; rowId: string }
+    | { claimed: false; status: "pending" }
+  > {
+    if (existing) {
+      // Retrying a failed attempt:
+      // Only set status to "pending" if it's still "failed" in the DB.
+      // If count is 0, someone else already claimed the retry a millisecond ago.
+      const { count } = await db.aIContent.updateMany({
+        where: { id: existing.id, status: "failed" },
+        data: {
+          status: "pending",
+          attempts: { increment: 1 },
+          lastAttemptedAt: now,
+        },
+      });
+      if (count === 0) {
+        return { claimed: false, status: "pending" };
+      }
+      return { claimed: true, rowId: existing.id };
+    }
+
+    // Creating a brand new row with status "pending":
+    // The database has a unique rule on youtubeVideoId.
+    // If two requests try this at the exact same moment, one succeeds
+    // and the other gets a "P2002" duplicate key error.
+    try {
+      const row = await db.aIContent.create({
+        data: {
+          youtubeVideoId,
+          status: "pending",
+          attempts: 0,
+          lastAttemptedAt: now,
+        },
+      });
+      return { claimed: true, rowId: row.id };
+    } catch (err: unknown) {
+      // P2002 means another request just created it a millisecond earlier.
+      // That's fine! Just tell this user to wait ("pending").
+      if (
+        err &&
+        typeof err === "object" &&
+        "code" in err &&
+        (err as { code: string }).code === "P2002"
+      ) {
+        return { claimed: false, status: "pending" };
+      }
+      throw err;
+    }
+  }
+
+  // Try to claim the generation rights
+  const claim = await claimGeneration();
+
+  // If another request is already generating it, tell user to poll/wait
+  if (!claim.claimed) {
+    return NextResponse.json({ status: claim.status });
+  }
+
+  // -------------------------------------------------------------
+  // 4. Fetch the YouTube Video Transcript
+  // -------------------------------------------------------------
+  const transcriptResult = await getTranscript(youtubeVideoId);
+
+  // If we couldn't get the transcript (e.g. video has no captions, or YouTube blocked)
+  if (!transcriptResult.success) {
+    await db.aIContent.update({
+      where: { id: claim.rowId },
+      data: {
+        status: "failed",
+        attempts: { increment: 1 },
+        lastAttemptedAt: now,
+      },
+    });
+
+    return NextResponse.json({
+      status: "failed",
+      reason: transcriptResult.reason,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // 5. Prepare Transcript & Generate Notes with Gemini AI
+  // -------------------------------------------------------------
+  // Limit transcript length to 20,000 characters so Gemini responds fast
+  // and doesn't hit Vercel's 60-second execution time limit.
+  const TRUNCATED_TRANSCRIPT_LENGTH = 20_000;
+  const truncatedTranscript = transcriptResult.transcript.slice(
+    0,
+    TRUNCATED_TRANSCRIPT_LENGTH
+  );
+
+  // Ask Gemini AI to create summary & quiz questions
+  const notesResult = await geminiProvider.generateNotes(truncatedTranscript);
+
+  // If Gemini failed to generate notes (e.g. rate limit, AI error)
+  if (!notesResult.success) {
+    await db.aIContent.update({
+      where: { id: claim.rowId },
+      data: {
+        status: "failed",
+        attempts: { increment: 1 },
+        lastAttemptedAt: now,
+      },
+    });
+
+    return NextResponse.json({
+      status: "failed",
+      reason: notesResult.reason,
+    });
+  }
+
+  // -------------------------------------------------------------
+  // 6. Save AI Results & Unlock for Current User
+  // -------------------------------------------------------------
+  // Store summary (as JSON string), quiz questions, and full transcript in DB
+  await db.aIContent.update({
+    where: { id: claim.rowId },
+    data: {
+      status: "ready",
+      transcript: transcriptResult.transcript,
+      summary: JSON.stringify(notesResult.summary),
+      quiz: notesResult.quiz,
+      attempts: { increment: 1 },
+      lastAttemptedAt: now,
+    },
+  });
+
+  // Mark this video as unlocked for the user who requested it
+  await unlockForCurrentUser();
+
+  // Return the newly generated AI content back to the client
+  return NextResponse.json({
+    status: "ready",
+    summary: notesResult.summary,
+    quiz: notesResult.quiz,
+  });
+}
